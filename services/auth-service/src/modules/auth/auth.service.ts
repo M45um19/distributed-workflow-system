@@ -1,13 +1,14 @@
 import { IAuthService } from './auth.interface';
 import { IUserRepository } from '../user/user.interface';
-import { RegisterUserDTO, LoginUserDTO } from './auth.validation'; // Zod থেকে ইনফার করা টাইপ
+import { RegisterUserDTO, LoginUserDTO } from './auth.validation'; 
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { env } from '../../config/env';
 import { AppError } from '../../utils/appError';
+import redisClient from '../../config/redis';
 
 export class AuthService implements IAuthService {
-  constructor(private userRepository: IUserRepository) {} // শর্টহ্যান্ড কনস্ট্রাক্টর
+  constructor(private userRepository: IUserRepository) {} 
 
   async register(data: RegisterUserDTO): Promise<any> {
     const { full_name, email, password } = data;
@@ -31,24 +32,38 @@ export class AuthService implements IAuthService {
     };
   }
 
-  async login(data: LoginUserDTO): Promise<any> {
+async login(data: LoginUserDTO): Promise<any> {
     const { email, password } = data;
 
-    // পাসওয়ার্ড চেক করার জন্য 'select: false' করা থাকলে তা ম্যানুয়ালি নিয়ে আসতে হতে পারে
     const user = await this.userRepository.findByEmail(email); 
     if (!user) throw new AppError('Invalid credentials', 400);
 
     const isMatch = await bcrypt.compare(password, user.password_hash);
-    if (!isMatch) throw new AppError("Invalid credentials", 400); // সিকিউরিটির জন্য একই এরর মেসেজ রাখা ভালো
+    if (!isMatch) throw new AppError("Invalid credentials", 400);
 
-    const token = jwt.sign(
+    const accessToken = jwt.sign(
       { userId: user._id },
-      env.JWT_SECRET as string,
-      { expiresIn: '1d' }
+      env.JWT_ACCESS_SECRET as string,
+      { expiresIn: '15m' }
+    );
+
+    const refreshToken = jwt.sign(
+      { userId: user._id },
+      env.JWT_REFRESH_SECRET as string,
+      { expiresIn: '7d' }
+    );
+
+    const REDIS_TTL = 7 * 24 * 60 * 60; 
+    await redisClient.set(
+      `refresh_token:${user._id}`,
+      refreshToken,
+      'EX',
+      REDIS_TTL
     );
 
     return { 
-      token, 
+      accessToken, 
+      refreshToken, 
       user: { id: user._id, name: user.full_name, email: user.email } 
     };
   }

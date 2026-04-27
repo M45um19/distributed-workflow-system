@@ -10,7 +10,6 @@ export const validateRequest = (schema: ZodSchema<any>) => {
                 params: req.params,
             });
 
-            // ক্লিন করা ডেটা আবার রিকোয়েস্টে সেট করা
             req.body = validatedData.body;
             req.query = validatedData.query;
             req.params = validatedData.params;
@@ -18,10 +17,8 @@ export const validateRequest = (schema: ZodSchema<any>) => {
             next();
         } catch (error: any) {
             if (error instanceof ZodError) {
-                // ZodError থেকে সরাসরি ইস্যুগুলো ম্যাপ করা
                 const formattedErrors = error.issues.map((issue) => {
                     return {
-                        // পাথ যদি ['body', 'email'] হয়, তবে আমরা 'email' নেব
                         path: issue.path.length > 0 ? issue.path[issue.path.length - 1] : 'request',
                         message: issue.message,
                     };
@@ -30,7 +27,7 @@ export const validateRequest = (schema: ZodSchema<any>) => {
                 return res.status(400).json({
                     success: false,
                     message: 'Validation Error',
-                    errors: formattedErrors, // এখন এটি আর খালি আসবে না
+                    errors: formattedErrors,
                 });
             }
             next(error);
