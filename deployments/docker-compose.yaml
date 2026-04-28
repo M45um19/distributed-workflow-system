@@ -23,11 +23,25 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
 
-  redis:
+  redis-auth:
     image: redis:7-alpine
-    container_name: taskflow-redis
+    container_name: taskflow-redis-auth
     ports:
-      - "6379:6379"
+      - "6380:6379"
+    command: redis-server --save 60 1 --loglevel warning
+
+  redis-task:
+    image: redis:7-alpine
+    container_name: taskflow-redis-task
+    ports:
+      - "6381:6379"
+    command: redis-server --save 60 1 --loglevel warning
+
+  redis-notification:
+    image: redis:7-alpine
+    container_name: taskflow-redis-notification
+    ports:
+      - "6382:6379"
     command: redis-server --save 60 1 --loglevel warning
 
   redis-insight:
@@ -36,7 +50,9 @@ services:
     ports:
       - "5540:5540"
     depends_on:
-      - redis
+      - redis-auth
+      - redis-task
+      - redis-notification
 
 volumes:
   mongo-data:
