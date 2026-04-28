@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package auth;
+
+option go_package = "./pb";
+
+service AuthService {
+  rpc VerifySession (VerifyRequest) returns (VerifyResponse);
+}
+
+message VerifyRequest {
+  string userId = 1;
+  string token = 2;
+}
+
+message VerifyResponse {
+  bool isValid = 1;
+  string userId = 2;
+  string role = 3;
+  string email = 4;
+}

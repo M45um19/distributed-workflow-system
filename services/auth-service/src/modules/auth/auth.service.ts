@@ -1,6 +1,6 @@
 import { IAuthService } from './auth.interface';
 import { IUserRepository } from '../user/user.interface';
-import { RegisterUserDTO, LoginUserDTO } from './auth.validation'; 
+import { RegisterUserDTO, LoginUserDTO } from './auth.validation';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { env } from '../../config/env';
@@ -8,7 +8,7 @@ import { AppError } from '../../utils/appError';
 import redisClient from '../../config/redis';
 
 export class AuthService implements IAuthService {
-  constructor(private userRepository: IUserRepository) {} 
+  constructor(private userRepository: IUserRepository) { }
 
   async register(data: RegisterUserDTO): Promise<any> {
     const { full_name, email, password } = data;
@@ -25,17 +25,19 @@ export class AuthService implements IAuthService {
       password_hash: hashedPassword
     });
 
-    return { 
-      id: newUser._id, 
-      name: newUser.full_name, 
-      email: newUser.email 
+    return {
+      id: newUser._id,
+      name: newUser.full_name,
+      email: newUser.email
     };
   }
 
-async login(data: LoginUserDTO): Promise<any> {
+  async login(data: LoginUserDTO, deviceMeta: { deviceId: string, ip: any, deviceName: string }): Promise<any> {
     const { email, password } = data;
 
-    const user = await this.userRepository.findByEmail(email); 
+    const { deviceId, ip, deviceName } = deviceMeta
+
+    const user = await this.userRepository.findByEmail(email);
     if (!user) throw new AppError('Invalid credentials', 400);
 
     const isMatch = await bcrypt.compare(password, user.password_hash);
@@ -53,18 +55,27 @@ async login(data: LoginUserDTO): Promise<any> {
       { expiresIn: '7d' }
     );
 
-    const REDIS_TTL = 7 * 24 * 60 * 60; 
+    const sessionObject = {
+      refreshToken: refreshToken,
+      user: {
+        id: user._id,
+        role: (user as any).role || 'user',
+        name: user.full_name
+      },
+      meta: { ip, deviceName }
+    };
+
     await redisClient.set(
-      `refresh_token:${user._id}`,
-      refreshToken,
+      `session:${user._id}:${deviceId}`,
+      JSON.stringify(sessionObject),
       'EX',
-      REDIS_TTL
+      7 * 24 * 60 * 60
     );
 
-    return { 
-      accessToken, 
-      refreshToken, 
-      user: { id: user._id, name: user.full_name, email: user.email } 
+    return {
+      accessToken,
+      refreshToken,
+      user: { id: user._id, name: user.full_name, email: user.email }
     };
   }
 }

@@ -3,7 +3,7 @@ import { IAuthService } from './auth.interface';
 import { sendResponse } from '../../utils/sendResponse';
 
 export class AuthController {
-  constructor(private authService: IAuthService) {}
+  constructor(private authService: IAuthService) { }
 
   register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -22,7 +22,13 @@ export class AuthController {
 
   login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const result = await this.authService.login(req.body);
+      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+
+      const deviceName = req.headers['user-agent'] || 'unknown_device';
+
+      const deviceId = Buffer.from(`${deviceName}-${ip}`).toString('base64').substring(0, 16);
+
+      const result = await this.authService.login(req.body, { deviceId, ip, deviceName });
 
       sendResponse(res, {
         statusCode: 200,
