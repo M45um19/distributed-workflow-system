@@ -9,8 +9,7 @@ service AuthService {
 }
 
 message VerifyRequest {
-  string userId = 1;
-  string token = 2;
+  string token = 1;
 }
 
 message VerifyResponse {
@@ -18,4 +17,7 @@ message VerifyResponse {
   string userId = 2;
   string role = 3;
   string email = 4;
+  string deviceId = 5;
+  string ip = 6;
+  string deviceName = 7;
 }

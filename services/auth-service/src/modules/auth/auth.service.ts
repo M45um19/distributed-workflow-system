@@ -44,7 +44,7 @@ export class AuthService implements IAuthService {
     if (!isMatch) throw new AppError("Invalid credentials", 400);
 
     const accessToken = jwt.sign(
-      { userId: user._id },
+      { userId: user._id, deviceId: deviceId },
       env.JWT_ACCESS_SECRET as string,
       { expiresIn: '15m' }
     );
@@ -60,13 +60,14 @@ export class AuthService implements IAuthService {
       user: {
         id: user._id,
         role: (user as any).role || 'user',
-        name: user.full_name
+        name: user.full_name,
+        email: user.email,
       },
       meta: { ip, deviceName }
     };
 
     await redisClient.set(
-      `session:${user._id}:${deviceId}`,
+      `session:${user._id.toString()}:${deviceId}`,
       JSON.stringify(sessionObject),
       'EX',
       7 * 24 * 60 * 60
@@ -77,5 +78,29 @@ export class AuthService implements IAuthService {
       refreshToken,
       user: { id: user._id, name: user.full_name, email: user.email }
     };
+  }
+
+  async verifySession(token: string): Promise<any> {
+    try {
+      const decoded = jwt.verify(token, env.JWT_ACCESS_SECRET as string) as any;
+      const { userId, deviceId } = decoded;
+
+      const sessionData = await redisClient.get(`session:${userId}:${deviceId}`);
+      if (!sessionData) return { isValid: false };
+
+      const session = JSON.parse(sessionData);
+
+      return {
+        isValid: true,
+        userId: session.user.id,
+        role: session.user.role,
+        email: session.user.email,
+        deviceId: deviceId,
+        ip: session.meta.ip,
+        deviceName: session.meta.deviceName
+      };
+    } catch (error) {
+      return { isValid: false };
+    }
   }
 }
