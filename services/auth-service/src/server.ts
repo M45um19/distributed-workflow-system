@@ -1,7 +1,9 @@
 import app from "./app";
 import { connectDB } from "./config/db";
 import { env } from "./config/env";
+import { startGrpcServer } from "./config/grpc";
 import redisClient from "./config/redis";
+import { registerAuthGrpcService } from "./modules/auth/auth.grpc";
 
 const PORT = env.PORT || 5000;
 
@@ -10,13 +12,15 @@ const startServer = async () => {
 
     await connectDB();
     await redisClient.ping();
+
+    registerAuthGrpcService()
+    startGrpcServer(50051);
+
     // Later will add:
-    // - Redis connection
     // - Kafka producer init
-    // - gRPC server start
 
     app.listen(PORT, () => {
-      console.log(`Auth Service running on port ${PORT}`);
+      console.log(`Auth Service running on port: ${PORT}`);
     });
 
   } catch (error) {
