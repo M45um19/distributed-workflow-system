@@ -67,6 +67,11 @@ The core objective of the project is to provide a seamless collaborative experie
 | POST | /api/v1/workspaces/:id/invite | Invite member | Yes |
 | GET | /api/v1/workspaces/:id/members | Get members | Yes |
 
+#### gRPC (Internal)
+| Method | Request | Response | Description |
+|--------|---------|----------|-------------|
+| `VerifySession` | `token` | `VerifyResponse` | Validates JWT against Redis session & returns user metadata. |
+
 ---
 
 ### 2. Task & Project Service (Go)

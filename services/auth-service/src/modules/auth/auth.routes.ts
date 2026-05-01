@@ -7,11 +7,10 @@ import { loginSchema, registerSchema } from './auth.validation';
 
 const router = Router();
 
-const userRepository = new UserRepository(); // Concrete Implementation
-export const authService = new AuthService(userRepository); // Injecting Repo into Service
-const authController = new AuthController(authService); // Injecting Service into Controller
+const userRepository = new UserRepository();
+export const authService = new AuthService(userRepository);
+const authController = new AuthController(authService);
 
-// API Endpoints
 router.post(
   '/register',
   validateRequest(registerSchema), 
