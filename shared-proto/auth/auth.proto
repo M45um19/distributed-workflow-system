@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package auth;
 
-option go_package = "./pb";
+option go_package = "github.com/M45um19/distributed-workflow-system/services/workspace-service/pb";
 
 service AuthService {
   rpc VerifySession (VerifyRequest) returns (VerifyResponse);
