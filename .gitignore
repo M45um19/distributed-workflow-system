@@ -29,3 +29,8 @@ logs/
 # OS generated files
 thumbs.db
 desktop.ini
+
+# Protocol Buffers generated code (gRPC)
+pb/
+*.pb.go
+*.pb.gw.go
