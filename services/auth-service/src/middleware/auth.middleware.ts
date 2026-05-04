@@ -1,41 +1,36 @@
-import { Request, Response, NextFunction } from 'express';
-import { authService } from '../modules/auth/auth.routes';
+import { Response, NextFunction } from 'express';
+import { IAuthService } from '../modules/auth/auth.interface';
 import { AppError } from '../utils/appError';
+import { AuthRequest } from '../modules/auth/auth.interface';
 
-interface AuthRequest extends Request {
-  user?: {
-    id: string;
-    role: string;
-    email: string;
-    deviceId: string;
+export class AuthMiddleware {
+  constructor(private authService: IAuthService) {}
+
+  public protect = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      let token;
+      if (req.headers.authorization?.startsWith('Bearer')) {
+        token = req.headers.authorization.split(' ')[1];
+      }
+
+      if (!token) throw new AppError('Please log in', 401);
+
+      const session = await this.authService.verifySession(token);
+
+      if (!session.isValid) throw new AppError('Session invalid', 401);
+
+      req.user = {
+        userId: session.userId,
+        role: session.role,
+        email: session.email,
+        deviceId: session.deviceId,
+        ip: session.ip,
+        deviceName: session.deviceName
+      };
+
+      next();
+    } catch (error) {
+      next(error);
+    }
   };
 }
-
-export const protect = async (req: AuthRequest, res: Response, next: NextFunction) => {
-  try {
-    let token;
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-      token = req.headers.authorization.split(' ')[1];
-    }
-
-    if (!token) {
-      throw new AppError('Please log in', 401);
-    }
-
-    const session = await authService.verifySession(token);
-
-    if (!session.isValid) {
-      throw new AppError('Session invalid or expire', 401);
-    }
-    req.user = {
-      id: session.userId,
-      role: session.role,
-      email: session.email,
-      deviceId: session.deviceId
-    };
-
-    next();
-  } catch (error) {
-    next(error);
-  }
-};

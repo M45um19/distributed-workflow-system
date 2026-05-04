@@ -8,7 +8,7 @@ import (
 )
 
 type Controller struct {
-	service Service // Using Interface
+	service Service
 }
 
 func NewController(s Service) *Controller {
