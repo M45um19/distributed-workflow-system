@@ -9,6 +9,10 @@ type service struct {
 	repo Repository
 }
 
+type Service interface {
+	CreateWorkspace(ctx context.Context, input CreateWorkspaceInput, ownerID string) (*Workspace, error)
+}
+
 func NewService(repo Repository) Service {
 	return &service{repo: repo}
 }

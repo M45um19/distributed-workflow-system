@@ -1,43 +1,45 @@
-import express from "express";
-import dotenv from "dotenv";
-import { authRouter } from "./modules/auth/auth.routes";
-import { metricsHandler } from "./monitoring/prometheus";
+import express, { Application } from "express";
 import mongoose from "mongoose";
 import { globalErrorHandler } from "./middleware/error.middleware";
-import { WorkspaceRouter } from "./modules/workspace/workspace.routes";
+import { metricsHandler } from "./monitoring/prometheus";
+import { AppContainer } from "./app.container";
+import { setupAuthRoutes } from "./modules/auth/auth.routes";
 
-dotenv.config();
+const createApp = (container: AppContainer): Application => {
+  const app = express();
 
-const app = express();
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
 
-// Middlewares
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+  app.use("/api/v1/auth", setupAuthRoutes(container.authController));
 
-app.use("/api/v1/auth", authRouter);
-app.use("/api/v1/workspace", WorkspaceRouter)
+  setupHealthRoutes(app);
 
-// Health check (K8s readiness probe later)
-app.get("/api/v1/auth/health", (_req, res) => {
-  const isDatabaseConnected = mongoose.connection.readyState === 1;
+  app.use(globalErrorHandler);
 
-  if (isDatabaseConnected) {
-    return res.status(200).json({
-      status: "UP",
-      service: "auth-service",
-      database: "connected"
-    });
-  } else {
+  return app;
+};
+
+const setupHealthRoutes = (app: Application) => {
+  app.get("/api/v1/auth/metrics", metricsHandler);
+
+  app.get("/api/v1/auth/health", (_req, res) => {
+    const isDatabaseConnected = mongoose.connection.readyState === 1;
+
+    if (isDatabaseConnected) {
+      return res.status(200).json({
+        status: "UP",
+        service: "auth-service",
+        database: "connected"
+      });
+    }
+
     return res.status(503).json({
       status: "DOWN",
       service: "auth-service",
       database: "disconnected"
     });
-  }
-});
+  });
+};
 
-app.get("/api/v1/auth/metrics", metricsHandler)
-
-app.use(globalErrorHandler)
-
-export default app;
+export default createApp;

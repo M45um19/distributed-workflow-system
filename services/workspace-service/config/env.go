@@ -18,7 +18,7 @@ type Config struct {
 	AuthServiceGRPCAddress string `mapstructure:"AUTH_SERVICE_GRPC_ADDR"`
 }
 
-func LoadConfig() (config Config, err error) {
+func LoadConfig() (config *Config, err error) {
 	viper.SetConfigFile("./.env")
 	viper.AutomaticEnv()
 
@@ -27,6 +27,8 @@ func LoadConfig() (config Config, err error) {
 		log.Printf("Warning: .env file not found, using system env")
 	}
 
-	err = viper.Unmarshal(&config)
+	var c Config
+	err = viper.Unmarshal(&c)
+	config = &c
 	return
 }

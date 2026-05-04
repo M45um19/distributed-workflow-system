@@ -1,26 +1,9 @@
-import { Router } from 'express';
-import { AuthController } from './auth.controller';
-import { AuthService } from './auth.service';
-import { UserRepository } from '../user/user.repository';
-import { validateRequest } from '../../middleware/validation.middleware';
-import { loginSchema, registerSchema } from './auth.validation';
+import { Router } from "express";
+import { AuthController } from "./auth.controller";
 
-const router = Router();
-
-const userRepository = new UserRepository();
-export const authService = new AuthService(userRepository);
-const authController = new AuthController(authService);
-
-router.post(
-  '/register',
-  validateRequest(registerSchema), 
-  authController.register
-);
-
-router.post(
-  '/login',
-  validateRequest(loginSchema), 
-  authController.login
-);
-
-export const authRouter = router;
+export const setupAuthRoutes = (authCtrl: AuthController) => {
+  const router = Router();
+  router.post("/register", authCtrl.register);
+  router.post("/login", authCtrl.login);
+  return router;
+};
