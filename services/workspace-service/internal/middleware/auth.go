@@ -13,7 +13,21 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-func Protect(secret string, rdb *redis.Client, grpcClient pb.AuthServiceClient) gin.HandlerFunc {
+type AuthMiddleware struct {
+	secret     string
+	rdb        *redis.Client
+	grpcClient pb.AuthServiceClient
+}
+
+func NewAuthMiddleware(secret string, rdb *redis.Client, grpc pb.AuthServiceClient) *AuthMiddleware {
+	return &AuthMiddleware{
+		secret:     secret,
+		rdb:        rdb,
+		grpcClient: grpc,
+	}
+}
+
+func (m *AuthMiddleware) Protect() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
@@ -24,7 +38,7 @@ func Protect(secret string, rdb *redis.Client, grpcClient pb.AuthServiceClient) 
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 
 		token, _ := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			return []byte(secret), nil
+			return []byte(m.secret), nil
 		})
 
 		claims, ok := token.Claims.(jwt.MapClaims)
@@ -37,24 +51,23 @@ func Protect(secret string, rdb *redis.Client, grpcClient pb.AuthServiceClient) 
 		deviceId := fmt.Sprintf("%v", claims["deviceId"])
 		redisKey := fmt.Sprintf("session:%s:%s", userID, deviceId)
 
-		sessionData, err := rdb.Get(context.Background(), redisKey).Result()
+		sessionData, err := m.rdb.Get(context.Background(), redisKey).Result()
 		if err == nil && sessionData != "" {
 			c.Set("user_id", userID)
 			c.Next()
 			return
 		}
 
-		resp, err := grpcClient.VerifySession(context.Background(), &pb.VerifyRequest{
+		resp, err := m.grpcClient.VerifySession(context.Background(), &pb.VerifyRequest{
 			Token: tokenString,
 		})
 
 		if err != nil || !resp.IsValid {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Session expired or invalid", "details": "gRPC verification failed"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Session expired", "details": "gRPC check failed"})
 			return
 		}
 
-		rdb.Set(context.Background(), redisKey, "active", 15*time.Minute)
-
+		m.rdb.Set(context.Background(), redisKey, "active", 15*time.Minute)
 		c.Set("user_id", resp.UserId)
 		c.Next()
 	}
