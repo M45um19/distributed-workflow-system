@@ -2,7 +2,8 @@ package workspace
 
 import (
 	"context"
-	"errors"
+
+	"github.com/M45um19/distributed-workflow-system/services/workspace-service/pkg/apperror"
 )
 
 type service struct {
@@ -11,6 +12,7 @@ type service struct {
 
 type Service interface {
 	CreateWorkspace(ctx context.Context, input CreateWorkspaceInput, ownerID string) (*Workspace, error)
+	GetUserWorkspaces(ctx context.Context, ownerId string) ([]Workspace, error)
 }
 
 func NewService(repo Repository) Service {
@@ -20,7 +22,7 @@ func NewService(repo Repository) Service {
 func (s *service) CreateWorkspace(ctx context.Context, input CreateWorkspaceInput, ownerID string) (*Workspace, error) {
 	exists, _ := s.repo.FindBySlug(ctx, input.Slug)
 	if exists != nil {
-		return nil, errors.New("workspace with this slug already exists")
+		return nil, apperror.BadRequest("workspace with this slug already exists")
 	}
 
 	ws := &Workspace{
@@ -34,4 +36,8 @@ func (s *service) CreateWorkspace(ctx context.Context, input CreateWorkspaceInpu
 		return nil, err
 	}
 	return ws, nil
+}
+
+func (s *service) GetUserWorkspaces(ctx context.Context, ownerId string) ([]Workspace, error) {
+	return s.repo.GetByOwnerID(ctx, ownerId)
 }

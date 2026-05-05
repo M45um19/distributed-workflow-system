@@ -62,10 +62,7 @@ The core objective of the project is to provide a seamless collaborative experie
 | POST | /api/v1/auth/register | Register user | No |
 | POST | /api/v1/auth/login | Login (JWT + Refresh Token) | No |
 | POST | /api/v1/auth/logout | Logout & blacklist token | Yes |
-| POST | /api/v1/workspaces | Create workspace | Yes |
-| GET | /api/v1/workspaces | List workspaces | Yes |
-| POST | /api/v1/workspaces/:id/invite | Invite member | Yes |
-| GET | /api/v1/workspaces/:id/members | Get members | Yes |
+
 
 #### gRPC (Internal)
 | Method | Request | Response | Description |
@@ -74,7 +71,7 @@ The core objective of the project is to provide a seamless collaborative experie
 
 ---
 
-### 2. Task & Project Service (Go)
+### 2. Workspace, Task & Project Service (Go)
 
 **Responsibility:** Core business logic & workflow orchestration  
 **Database:** PostgreSQL  
@@ -89,6 +86,10 @@ The core objective of the project is to provide a seamless collaborative experie
 | GET | /api/v1/tasks/:id | Get task | Yes |
 | PATCH | /api/v1/tasks/:id | Update task | Yes |
 | POST | /api/v1/tasks/:id/comments | Add comment | Yes |
+| POST | /api/v1/workspaces | Create workspace | Yes |
+| GET | /api/v1/workspaces | List workspaces | Yes |
+| POST | /api/v1/workspaces/:id/invite | Invite member | Yes |
+| GET | /api/v1/workspaces/:id/members | Get members | Yes |
 
 #### gRPC
 

@@ -16,7 +16,7 @@ spec:
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "5000"
-        prometheus.io/path: "/metrics"
+        prometheus.io/path: "/api/v1/auth/metrics"
     spec:
       containers:
       - name: auth-service

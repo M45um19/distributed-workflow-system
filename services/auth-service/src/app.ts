@@ -1,7 +1,7 @@
 import express, { Application } from "express";
 import mongoose from "mongoose";
 import { globalErrorHandler } from "./middleware/error.middleware";
-import { metricsHandler } from "./monitoring/prometheus";
+import { metricsHandler, metricsMiddleware } from "./monitoring/prometheus";
 import { AppContainer } from "./app.container";
 import { setupAuthRoutes } from "./modules/auth/auth.routes";
 
@@ -10,7 +10,7 @@ const createApp = (container: AppContainer): Application => {
 
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
-
+  app.use(metricsMiddleware);
   app.use("/api/v1/auth", setupAuthRoutes(container.authController));
 
   setupHealthRoutes(app);

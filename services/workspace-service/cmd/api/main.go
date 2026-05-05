@@ -7,6 +7,7 @@ import (
 
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/config"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/app"
+	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/middleware"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/workspace"
 	pb "github.com/M45um19/distributed-workflow-system/services/workspace-service/pb/auth"
 
@@ -39,6 +40,8 @@ func main() {
 	container := app.NewContainer(cfg, db, rdb, grpcClient)
 
 	r := gin.Default()
+
+	r.Use(middleware.GlobalErrorHandler(cfg.GoENV))
 	api := r.Group("/api/v1")
 	{
 		api.GET("/health", func(c *gin.Context) {

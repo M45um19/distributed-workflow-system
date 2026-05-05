@@ -9,6 +9,7 @@ import (
 type Repository interface {
 	Create(ctx context.Context, ws *Workspace) error
 	FindBySlug(ctx context.Context, slug string) (*Workspace, error)
+	GetByOwnerID(ctx context.Context, ownerId string) ([]Workspace, error)
 }
 
 type sqlRepository struct {
@@ -31,4 +32,22 @@ func (r *sqlRepository) FindBySlug(ctx context.Context, slug string) (*Workspace
 		return nil, err
 	}
 	return &ws, nil
+}
+
+func (r *sqlRepository) GetByOwnerID(ctx context.Context, ownerId string) ([]Workspace, error) {
+	var workspaces []Workspace
+
+	query := `SELECT id, name, slug, owner_id, description, created_at from workspaces WHERE owner_id=$1 ORDER BY created_at DESC`
+
+	err := r.db.SelectContext(ctx, workspaces, query, ownerId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if workspaces == nil {
+		workspaces = []Workspace{}
+	}
+
+	return workspaces, nil
 }
