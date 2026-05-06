@@ -1,6 +1,8 @@
 import { NextFunction, Request, Response } from 'express';
-import { IAuthService } from './auth.interface';
+
 import { sendResponse } from '../../utils/sendResponse';
+
+import { IAuthService } from './auth.interface';
 
 export class AuthController {
   constructor(private authService: IAuthService) { }
@@ -22,9 +24,13 @@ export class AuthController {
 
   login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+      const xForwardedFor = req.headers['x-forwarded-for'];
+      const ip = (Array.isArray(xForwardedFor) ? xForwardedFor[0] : xForwardedFor)
+        || req.socket.remoteAddress
+        || 'unknown';
 
-      const deviceName = req.headers['user-agent'] || 'unknown_device';
+      const userAgent = req.headers['user-agent'];
+      const deviceName = (Array.isArray(userAgent) ? userAgent[0] : userAgent) || 'unknown_device';
 
       const deviceId = Buffer.from(`${deviceName}-${ip}`).toString('base64').substring(0, 16);
 

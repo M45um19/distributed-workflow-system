@@ -1,14 +1,15 @@
-import { Response, NextFunction } from 'express';
-import { IAuthService } from '../modules/auth/auth.interface';
+import { Response, NextFunction, Request } from 'express';
+
+import { IAuthService, AuthRequest, AuthUser } from '../modules/auth/auth.interface';
 import { AppError } from '../utils/appError';
-import { AuthRequest } from '../modules/auth/auth.interface';
 
 export class AuthMiddleware {
-  constructor(private authService: IAuthService) {}
+  constructor(private authService: IAuthService) { }
 
-  public protect = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  public protect = async (req: Request, _res: Response, next: NextFunction) => {
     try {
-      let token;
+      let token: string | undefined;
+
       if (req.headers.authorization?.startsWith('Bearer')) {
         token = req.headers.authorization.split(' ')[1];
       }
@@ -17,16 +18,20 @@ export class AuthMiddleware {
 
       const session = await this.authService.verifySession(token);
 
-      if (!session.isValid) throw new AppError('Session invalid', 401);
+      if (!session.isValid || !session.userId || !session.role || !session.email || !session.deviceId) {
+        throw new AppError('Incomplete session data', 401);
+      }
 
-      req.user = {
+      const userData = {
         userId: session.userId,
         role: session.role,
         email: session.email,
         deviceId: session.deviceId,
-        ip: session.ip,
-        deviceName: session.deviceName
-      };
+        ip: session.ip ?? undefined,
+        deviceName: session.deviceName ?? undefined
+      } as AuthUser;
+
+      (req as AuthRequest).user = userData;
 
       next();
     } catch (error) {
