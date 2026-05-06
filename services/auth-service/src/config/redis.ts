@@ -1,4 +1,5 @@
 import Redis from 'ioredis';
+
 import { env } from './env';
 
 const REDIS_URI = env.REDIS_URI as string;

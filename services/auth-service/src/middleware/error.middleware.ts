@@ -1,9 +1,16 @@
+/* eslint-disable no-console */
 import { NextFunction, Request, Response } from "express";
-import { AppError } from "../utils/appError";
-import { env } from "../config/env";
 
-const sendErrorDev = (err: any, res: Response) => {
-  res.status(err.statusCode).json({
+import { env } from "../config/env";
+import { AppError } from "../utils/appError";
+
+interface MongoCastError extends Error {
+  path: string;
+  value: string;
+}
+
+const sendErrorDev = (err: AppError, res: Response) => {
+  res.status(err.statusCode || 500).json({
     success: false,
     message: err.message,
     stack: err.stack,
@@ -11,15 +18,14 @@ const sendErrorDev = (err: any, res: Response) => {
   });
 };
 
-const sendErrorProd = (err: any, res: Response) => {
+const sendErrorProd = (err: AppError, res: Response) => {
   if (err.isOperational) {
-    res.status(err.statusCode).json({
+    res.status(err.statusCode || 500).json({
       success: false,
       message: err.message,
     });
-  } 
-  else {
-    console.error("ERROR: ", err);
+  } else {
+    console.error("ERROR : ", err);
     res.status(500).json({
       success: false,
       message: "Something went very wrong!",
@@ -28,22 +34,33 @@ const sendErrorProd = (err: any, res: Response) => {
 };
 
 export const globalErrorHandler = (
-  err: any,
-  req: Request,
+  err: Error | AppError,
+  _req: Request,
   res: Response,
-  next: NextFunction,
+  _next: NextFunction
 ) => {
-  err.statusCode = err.statusCode || 500;
-  err.status = err.status || "error";
+  let statusCode = 500;
+  if (err instanceof AppError) {
+    statusCode = err.statusCode;
+  }
 
   if (env.NODE_ENV === "development") {
-    sendErrorDev(err, res);
-  } else {
-    let error = { ...err };
-    error.message = err.message;
 
-    if (err.name === "CastError") error = new AppError(`Invalid ${err.path}: ${err.value}`, 400);
-    if (err.name === "JsonWebTokenError") error = new AppError("Invalid token. Please log in again!", 401);
+    const devError = err instanceof AppError ? err : new AppError(err.message, statusCode);
+    sendErrorDev(devError, res);
+  } else {
+    let error: AppError;
+
+    if (err.name === "CastError") {
+      const castErr = err as MongoCastError;
+      error = new AppError(`Invalid ${castErr.path}: ${castErr.value}`, 400);
+    } else if (err.name === "JsonWebTokenError") {
+      error = new AppError("Invalid token. Please log in again!", 401);
+    } else if (err instanceof AppError) {
+      error = err;
+    } else {
+      error = new AppError(err.message, 500);
+    }
 
     sendErrorProd(error, res);
   }

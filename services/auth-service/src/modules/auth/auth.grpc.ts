@@ -1,9 +1,11 @@
+import path from 'path';
+
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
-import path from 'path';
+
 import grpcServer from '../../config/grpc';
-import { AuthService } from './auth.service';
-import { IAuthService } from './auth.interface';
+
+import { IAuthService, SessionVerification } from './auth.interface';
 
 const PROTO_PATH = path.resolve(__dirname, '../../../../../shared-proto/auth/auth.proto');
 
@@ -15,24 +17,57 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   oneofs: true,
 });
 
-const authProto = grpc.loadPackageDefinition(packageDefinition) as any;
+interface AuthPackage extends grpc.GrpcObject {
+  auth: {
+    AuthService: grpc.ServiceClientConstructor;
+  };
+}
 
-const verifySessionHandler = (authService: IAuthService) => async (call: any, callback: any) => {
-  try {
-    const { token } = call.request; 
-    const result = await authService.verifySession(token);
-    callback(null, result);
-  } catch (error: any) {
-    callback({
-      code: grpc.status.INTERNAL,
-      message: error.message,
-    });
-  }
-};
+const authProto = grpc.loadPackageDefinition(packageDefinition) as unknown as AuthPackage;
 
-export const registerAuthGrpcService = (authService: IAuthService) => {
-  grpcServer.addService(authProto.auth.AuthService.service, {
+interface VerifySessionRequest {
+  token: string;
+}
+
+interface VerifySessionResponse {
+  isValid: boolean;
+  userId: string;
+  role: string;
+  email: string;
+  deviceId: string;
+}
+
+const verifySessionHandler = (authService: IAuthService): grpc.UntypedHandleCall => 
+  async (
+    call: grpc.ServerUnaryCall<VerifySessionRequest, VerifySessionResponse>, 
+    callback: grpc.sendUnaryData<VerifySessionResponse>
+  ) => {
+    try {
+      const { token } = call.request; 
+      const result: SessionVerification = await authService.verifySession(token);
+      
+      callback(null, {
+        isValid: result.isValid,
+        userId: result.userId ?? '',
+        role: result.role ?? '',
+        email: result.email ?? '',
+        deviceId: result.deviceId ?? '',
+      });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Internal gRPC Error";
+      callback({
+        code: grpc.status.INTERNAL,
+        details: errorMessage,
+      }, null);
+    }
+  };
+
+export const registerAuthGrpcService = (authService: IAuthService): void => {
+  const service = authProto.auth.AuthService.service;
+
+  grpcServer.addService(service, {
     VerifySession: verifySessionHandler(authService), 
   });
+  
   console.log("Auth gRPC service registered with injected AuthService");
 };

@@ -1,21 +1,21 @@
-import { IUserRepository } from './user.interface';
+import { IUser, IUserDocument, IUserRepository } from './user.interface';
 import { User } from './user.model';
 
 export class UserRepository implements IUserRepository {
-  async create(userData: any): Promise<any> {
-    const user = new User(userData);
-    return await user.save();
+  async exists(email: string): Promise<boolean> {
+    const user = await User.exists({ email });
+    return !!user;
   }
 
-  async findByEmail(email: string): Promise<any> {
-    return await User.findOne({ email }).select('+password_hash');
+  create(data: IUser): Promise<IUserDocument> {
+    return User.create(data);
   }
 
-  async exists(email: string): Promise<boolean | any> {
-    return await User.exists({ email });
+  async findByEmail(email: string): Promise<IUserDocument | null> {
+    return User.findOne({ email }).select('+password_hash').exec();
   }
 
-  async findById(id: string): Promise<any> {
-    return await User.findById(id);
+  findById(id: string): Promise<IUserDocument | null> {
+    return User.findById(id).exec();
   }
 }

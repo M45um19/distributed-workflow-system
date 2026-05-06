@@ -1,4 +1,5 @@
 import { Router } from "express";
+
 import { AuthController } from "./auth.controller";
 
 export const setupAuthRoutes = (authCtrl: AuthController) => {
