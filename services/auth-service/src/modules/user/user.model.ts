@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+
 import { IUser } from './user.validation';
 
 const userSchema = new mongoose.Schema<IUser>({

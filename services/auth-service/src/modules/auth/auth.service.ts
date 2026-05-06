@@ -1,16 +1,23 @@
-import { IAuthService } from './auth.interface';
-import { IUserRepository } from '../user/user.interface';
-import { RegisterUserDTO, LoginUserDTO } from './auth.validation';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import jwt, { JwtPayload } from 'jsonwebtoken';
+
 import { env } from '../../config/env';
-import { AppError } from '../../utils/appError';
 import redisClient from '../../config/redis';
+import { AppError } from '../../utils/appError';
+import { IUserRepository } from '../user/user.interface';
+
+import { IAuthService, AuthResponse, SessionVerification } from './auth.interface';
+import { RegisterUserDTO, LoginUserDTO } from './auth.validation';
+
+interface AccessTokenPayload extends JwtPayload {
+  userId: string;
+  deviceId: string;
+}
 
 export class AuthService implements IAuthService {
   constructor(private userRepository: IUserRepository) { }
 
-  async register(data: RegisterUserDTO): Promise<any> {
+  async register(data: RegisterUserDTO): Promise<AuthResponse["user"]> {
     const { full_name, email, password } = data;
 
     const isUserExist = await this.userRepository.exists(email);
@@ -26,16 +33,18 @@ export class AuthService implements IAuthService {
     });
 
     return {
-      id: newUser._id,
+      id: newUser._id.toString(),
       name: newUser.full_name,
       email: newUser.email
     };
   }
 
-  async login(data: LoginUserDTO, deviceMeta: { deviceId: string, ip: any, deviceName: string }): Promise<any> {
+  async login(
+    data: LoginUserDTO, 
+    deviceMeta: { deviceId: string, ip: string, deviceName: string }
+  ): Promise<AuthResponse> {
     const { email, password } = data;
-
-    const { deviceId, ip, deviceName } = deviceMeta
+    const { deviceId, ip, deviceName } = deviceMeta;
 
     const user = await this.userRepository.findByEmail(email);
     if (!user) throw new AppError('Invalid credentials', 400);
@@ -56,10 +65,10 @@ export class AuthService implements IAuthService {
     );
 
     const sessionObject = {
-      refreshToken: refreshToken,
+      refreshToken,
       user: {
-        id: user._id,
-        role: (user as any).role || 'user',
+        id: user._id.toString(),
+        role: user.role || 'user',
         name: user.full_name,
         email: user.email,
       },
@@ -76,19 +85,26 @@ export class AuthService implements IAuthService {
     return {
       accessToken,
       refreshToken,
-      user: { id: user._id, name: user.full_name, email: user.email }
+      user: { 
+        id: user._id.toString(), 
+        name: user.full_name, 
+        email: user.email 
+      }
     };
   }
 
-  async verifySession(token: string): Promise<any> {
+  async verifySession(token: string): Promise<SessionVerification> {
     try {
-      const decoded = jwt.verify(token, env.JWT_ACCESS_SECRET as string) as any;
+      const decoded = jwt.verify(token, env.JWT_ACCESS_SECRET as string) as AccessTokenPayload;
       const { userId, deviceId } = decoded;
 
       const sessionData = await redisClient.get(`session:${userId}:${deviceId}`);
       if (!sessionData) return { isValid: false };
 
-      const session = JSON.parse(sessionData);
+      const session = JSON.parse(sessionData) as {
+        user: { id: string; role: string; email: string };
+        meta: { ip: string; deviceName: string };
+      };
 
       return {
         isValid: true,
@@ -99,7 +115,7 @@ export class AuthService implements IAuthService {
         ip: session.meta.ip,
         deviceName: session.meta.deviceName
       };
-    } catch (error) {
+    } catch{
       return { isValid: false };
     }
   }
