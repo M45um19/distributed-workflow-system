@@ -6,6 +6,7 @@ export interface IUser {
   password_hash: string;
   role?: string;
   is_active?: boolean;
+  created_at?: Date
 }
 
 export interface IUserDocument extends IUser, Document {

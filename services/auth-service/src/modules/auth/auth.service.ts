@@ -1,13 +1,16 @@
+
 import bcrypt from 'bcryptjs';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 
 import { env } from '../../config/env';
+import { kafkaConfig } from '../../config/kafka';
 import redisClient from '../../config/redis';
 import { AppError } from '../../utils/appError';
 import { IUserRepository } from '../user/user.interface';
 
-import { IAuthService, AuthResponse, SessionVerification } from './auth.interface';
-import { RegisterUserDTO, LoginUserDTO } from './auth.validation';
+import { AuthResponse, IAuthService, SessionVerification } from './auth.interface';
+import { LoginUserDTO, RegisterUserDTO } from './auth.validation';
+
 
 interface AccessTokenPayload extends JwtPayload {
   userId: string;
@@ -17,27 +20,36 @@ interface AccessTokenPayload extends JwtPayload {
 export class AuthService implements IAuthService {
   constructor(private userRepository: IUserRepository) { }
 
-  async register(data: RegisterUserDTO): Promise<AuthResponse["user"]> {
-    const { full_name, email, password } = data;
+async register(data: RegisterUserDTO): Promise<AuthResponse["user"]> {
+  const { full_name, email, password } = data;
 
-    const isUserExist = await this.userRepository.exists(email);
-    if (isUserExist) throw new AppError('User already exists', 400);
+  const isUserExist = await this.userRepository.exists(email);
+  if (isUserExist) throw new AppError('User already exists', 400);
 
-    const salt = await bcrypt.genSalt(12);
-    const hashedPassword = await bcrypt.hash(password, salt);
+  const salt = await bcrypt.genSalt(12);
+  const hashedPassword = await bcrypt.hash(password, salt);
 
-    const newUser = await this.userRepository.create({
-      full_name,
-      email,
-      password_hash: hashedPassword
-    });
+  const newUser = await this.userRepository.create({
+    full_name,
+    email,
+    password_hash: hashedPassword
+  });
 
-    return {
-      id: newUser._id.toString(),
-      name: newUser.full_name,
-      email: newUser.email
-    };
-  }
+  const userResult = {
+    id: newUser._id.toString(),
+    name: newUser.full_name,
+    email: newUser.email
+  };
+
+
+  await kafkaConfig.sendMessage('user-registered', {
+    ...userResult,
+    role: newUser.role || 'user',
+    createdAt: newUser.created_at
+  });
+
+  return userResult;
+}
 
   async login(
     data: LoginUserDTO, 
