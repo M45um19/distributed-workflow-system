@@ -56,6 +56,10 @@ export const globalErrorHandler = (
       error = new AppError(`Invalid ${castErr.path}: ${castErr.value}`, 400);
     } else if (err.name === "JsonWebTokenError") {
       error = new AppError("Invalid token. Please log in again!", 401);
+    } else if (err.name === "KafkaJSProtocolError") {
+      error = new AppError("Message queue is temporarily unavailable", 503);
+    } else if (err.name === "KafkaJSConnectionError") {
+      error = new AppError("Could not connect to the event broker", 503);
     } else if (err instanceof AppError) {
       error = err;
     } else {
