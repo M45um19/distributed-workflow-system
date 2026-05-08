@@ -4,7 +4,7 @@ import jwt, { JwtPayload } from 'jsonwebtoken';
 
 import { env } from '../../config/env';
 import { kafkaConfig } from '../../config/kafka';
-import redisClient from '../../config/redis';
+import { redisService } from '../../config/redis';
 import { AppError } from '../../utils/appError';
 import { IUserRepository } from '../user/user.interface';
 
@@ -20,39 +20,39 @@ interface AccessTokenPayload extends JwtPayload {
 export class AuthService implements IAuthService {
   constructor(private userRepository: IUserRepository) { }
 
-async register(data: RegisterUserDTO): Promise<AuthResponse["user"]> {
-  const { full_name, email, password } = data;
+  async register(data: RegisterUserDTO): Promise<AuthResponse["user"]> {
+    const { full_name, email, password } = data;
 
-  const isUserExist = await this.userRepository.exists(email);
-  if (isUserExist) throw new AppError('User already exists', 400);
+    const isUserExist = await this.userRepository.exists(email);
+    if (isUserExist) throw new AppError('User already exists', 400);
 
-  const salt = await bcrypt.genSalt(12);
-  const hashedPassword = await bcrypt.hash(password, salt);
+    const salt = await bcrypt.genSalt(12);
+    const hashedPassword = await bcrypt.hash(password, salt);
 
-  const newUser = await this.userRepository.create({
-    full_name,
-    email,
-    password_hash: hashedPassword
-  });
+    const newUser = await this.userRepository.create({
+      full_name,
+      email,
+      password_hash: hashedPassword
+    });
 
-  const userResult = {
-    id: newUser._id.toString(),
-    name: newUser.full_name,
-    email: newUser.email
-  };
+    const userResult = {
+      id: newUser._id.toString(),
+      name: newUser.full_name,
+      email: newUser.email
+    };
 
 
-  await kafkaConfig.sendMessage('user-registered', {
-    ...userResult,
-    role: newUser.role || 'user',
-    createdAt: newUser.created_at
-  });
+    await kafkaConfig.sendMessage('user-registered', {
+      ...userResult,
+      role: newUser.role || 'user',
+      createdAt: newUser.created_at
+    });
 
-  return userResult;
-}
+    return userResult;
+  }
 
   async login(
-    data: LoginUserDTO, 
+    data: LoginUserDTO,
     deviceMeta: { deviceId: string, ip: string, deviceName: string }
   ): Promise<AuthResponse> {
     const { email, password } = data;
@@ -87,20 +87,23 @@ async register(data: RegisterUserDTO): Promise<AuthResponse["user"]> {
       meta: { ip, deviceName }
     };
 
-    await redisClient.set(
-      `session:${user._id.toString()}:${deviceId}`,
+    const sessionKey = `session:${user._id.toString()}:${deviceId}`;
+    const ttl = 7 * 24 * 60 * 60; // ৭ দিন সেকেন্ডে
+
+    await redisService.set(
+      sessionKey,
       JSON.stringify(sessionObject),
       'EX',
-      7 * 24 * 60 * 60
+      ttl
     );
 
     return {
       accessToken,
       refreshToken,
-      user: { 
-        id: user._id.toString(), 
-        name: user.full_name, 
-        email: user.email 
+      user: {
+        id: user._id.toString(),
+        name: user.full_name,
+        email: user.email
       }
     };
   }
@@ -110,7 +113,7 @@ async register(data: RegisterUserDTO): Promise<AuthResponse["user"]> {
       const decoded = jwt.verify(token, env.JWT_ACCESS_SECRET as string) as AccessTokenPayload;
       const { userId, deviceId } = decoded;
 
-      const sessionData = await redisClient.get(`session:${userId}:${deviceId}`);
+      const sessionData = await redisService.get(`session:${userId}:${deviceId}`);
       if (!sessionData) return { isValid: false };
 
       const session = JSON.parse(sessionData) as {
@@ -127,7 +130,7 @@ async register(data: RegisterUserDTO): Promise<AuthResponse["user"]> {
         ip: session.meta.ip,
         deviceName: session.meta.deviceName
       };
-    } catch{
+    } catch {
       return { isValid: false };
     }
   }
