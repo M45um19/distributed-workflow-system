@@ -3,7 +3,7 @@ import path from 'path';
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 
-import grpcServer from '../../config/grpc';
+import { grpcConfig } from '../../config/grpc';
 
 import { IAuthService, SessionVerification } from './auth.interface';
 
@@ -37,15 +37,15 @@ interface VerifySessionResponse {
   deviceId: string;
 }
 
-const verifySessionHandler = (authService: IAuthService): grpc.UntypedHandleCall => 
+const verifySessionHandler = (authService: IAuthService): grpc.UntypedHandleCall =>
   async (
-    call: grpc.ServerUnaryCall<VerifySessionRequest, VerifySessionResponse>, 
+    call: grpc.ServerUnaryCall<VerifySessionRequest, VerifySessionResponse>,
     callback: grpc.sendUnaryData<VerifySessionResponse>
   ) => {
     try {
-      const { token } = call.request; 
+      const { token } = call.request;
       const result: SessionVerification = await authService.verifySession(token);
-      
+
       callback(null, {
         isValid: result.isValid,
         userId: result.userId ?? '',
@@ -65,9 +65,9 @@ const verifySessionHandler = (authService: IAuthService): grpc.UntypedHandleCall
 export const registerAuthGrpcService = (authService: IAuthService): void => {
   const service = authProto.auth.AuthService.service;
 
-  grpcServer.addService(service, {
-    VerifySession: verifySessionHandler(authService), 
+  grpcConfig.getServer().addService(service, {
+    VerifySession: verifySessionHandler(authService),
   });
-  
+
   console.log("Auth gRPC service registered with injected AuthService");
 };
