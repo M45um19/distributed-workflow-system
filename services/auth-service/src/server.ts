@@ -1,16 +1,16 @@
 import createApp from "./app";
 import { AppContainer } from "./app.container";
-import { connectDB } from "./config/db";
+import { dbConfig } from "./config/db";
 import { env } from "./config/env";
-import { startGrpcServer } from "./config/grpc";
+import { grpcConfig } from "./config/grpc";
 import { kafkaConfig } from "./config/kafka";
-import redisClient from "./config/redis";
+import { redisService } from "./config/redis";
 import { registerAuthGrpcService } from "./modules/auth/auth.grpc";
 
 const startServer = async () => {
   try {
-    await connectDB();
-    await redisClient.ping();
+    await dbConfig.connect();
+    await redisService.ping();
     await kafkaConfig.connect();
 
     const container = new AppContainer();
@@ -18,7 +18,8 @@ const startServer = async () => {
     const app = createApp(container);
 
     registerAuthGrpcService(container.authService);
-    startGrpcServer(50051);
+
+    grpcConfig.start(50051);
 
     const PORT = env.PORT || 5000;
     app.listen(PORT, () => {

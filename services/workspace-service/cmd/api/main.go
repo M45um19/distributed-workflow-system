@@ -44,7 +44,7 @@ func main() {
 	r.Use(middleware.GlobalErrorHandler(cfg.GoENV))
 	api := r.Group("/api/v1")
 	{
-		api.GET("/health", func(c *gin.Context) {
+		api.GET("/workspces/health", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"status": "UP", "redis": rdb != nil})
 		})
 
