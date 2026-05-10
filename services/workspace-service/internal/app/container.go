@@ -3,6 +3,7 @@ package app
 import (
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/config"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/middleware"
+	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/user"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/workspace"
 	pb "github.com/M45um19/distributed-workflow-system/services/workspace-service/pb/auth"
 	"github.com/jmoiron/sqlx"
@@ -12,9 +13,18 @@ import (
 type Container struct {
 	WorkspaceCtrl *workspace.Controller
 	AuthMid       *middleware.AuthMiddleware
+	KafkaWorker   *Worker
 }
 
 func NewContainer(cfg *config.Config, db *sqlx.DB, rdb *redis.Client, grpc pb.AuthServiceClient) *Container {
+
+	userRepo := user.NewRepository(db)
+	userSvc := user.NewService(userRepo)
+	userHandler := user.NewKafkaHandler(userSvc)
+
+	// Kafka Reader
+	reader := config.NewKafkaReader(cfg.KafkaBrokers, "user-registered", "workspace-service-group")
+	worker := NewWorker(reader, userHandler)
 
 	// Workspace Module
 	wsRepo := workspace.NewRepository(db)
@@ -26,5 +36,6 @@ func NewContainer(cfg *config.Config, db *sqlx.DB, rdb *redis.Client, grpc pb.Au
 	return &Container{
 		WorkspaceCtrl: wsCtrl,
 		AuthMid:       authMid,
+		KafkaWorker:   worker,
 	}
 }

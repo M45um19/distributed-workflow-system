@@ -5,10 +5,11 @@ import (
 )
 
 type IApiResponse struct {
-	Success bool        `json:"success"`
-	Message string      `json:"message"`
-	Meta    interface{} `json:"meta,omitempty"`
-	Data    interface{} `json:"data"`
+	StatusCode int16       `json:"statusCode`
+	Success    bool        `json:"success"`
+	Message    string      `json:"message"`
+	Meta       interface{} `json:"meta,omitempty"`
+	Data       interface{} `json:"data"`
 }
 
 func SendResponse(c *gin.Context, statusCode int, success bool, message string, data interface{}, meta ...interface{}) {
@@ -18,9 +19,10 @@ func SendResponse(c *gin.Context, statusCode int, success bool, message string, 
 	}
 
 	c.JSON(statusCode, IApiResponse{
-		Success: success,
-		Message: message,
-		Meta:    m,
-		Data:    data,
+		StatusCode: int16(statusCode),
+		Success:    success,
+		Message:    message,
+		Meta:       m,
+		Data:       data,
 	})
 }
