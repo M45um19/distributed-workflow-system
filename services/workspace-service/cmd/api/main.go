@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -38,6 +39,8 @@ func main() {
 	grpcClient := pb.NewAuthServiceClient(conn)
 
 	container := app.NewContainer(cfg, db, rdb, grpcClient)
+
+	go container.KafkaWorker.Start(context.Background())
 
 	r := gin.Default()
 
