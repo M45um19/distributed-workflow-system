@@ -69,27 +69,31 @@ The core objective of the project is to provide a seamless collaborative experie
 |--------|---------|----------|-------------|
 | `VerifySession` | `token` | `VerifyResponse` | Validates JWT against Redis session & returns user metadata. |
 
+#### Events Produced
+- `user-registered`: Triggered when a new user signs up.
+
 ---
 
 ### 2. Workspace, Task & Project Service (Go)
 
-**Responsibility:** Core business logic & workflow orchestration  
+**Responsibility:** Core business logic, workflow orchestration, and localized user profile snapshotting (via Kafka sync).
 **Database:** PostgreSQL  
 
 #### API
 
 | Method | Endpoint | Description | Auth |
 |-------|---------|------------|------|
+| POST | /api/v1/workspaces | Create workspace | Yes |
+| GET | /api/v1/workspaces | List workspaces | Yes |
+| POST | /api/v1/workspaces/:id/invite | Invite member | Yes |
+| GET | /api/v1/workspaces/:id/members | Get members | Yes |
 | POST | /api/v1/projects | Create project | Yes |
 | GET | /api/v1/projects/:id | Get project (cached) | Yes |
 | POST | /api/v1/tasks | Create task (Temporal workflow) | Yes |
 | GET | /api/v1/tasks/:id | Get task | Yes |
 | PATCH | /api/v1/tasks/:id | Update task | Yes |
 | POST | /api/v1/tasks/:id/comments | Add comment | Yes |
-| POST | /api/v1/workspaces | Create workspace | Yes |
-| GET | /api/v1/workspaces | List workspaces | Yes |
-| POST | /api/v1/workspaces/:id/invite | Invite member | Yes |
-| GET | /api/v1/workspaces/:id/members | Get members | Yes |
+
 
 #### gRPC
 
@@ -121,6 +125,7 @@ The core objective of the project is to provide a seamless collaborative experie
 
 ## Kafka Events
 
+- user-registered → Auth → Workspace (Snapshot sync)
 - user.invited → Auth → Notification
 - task.created → Task → Worker
 - task.status.updated → Task → Notification
@@ -159,8 +164,8 @@ The core objective of the project is to provide a seamless collaborative experie
 
 - Stateless Auth → JWT
 - Stateful Sessions → Redis
-- Eventual Consistency → Kafka
-- Durable Execution → Temporal
+- Eventual Consistency → Kafka (User profile replication across services)
+- Data Locality → User Snapshots in Workspace service (Reduces gRPC overhead)
 
 ---
 

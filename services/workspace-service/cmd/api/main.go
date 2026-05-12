@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -38,22 +37,21 @@ func main() {
 	defer conn.Close()
 	grpcClient := pb.NewAuthServiceClient(conn)
 
+	// Dependency Container
 	container := app.NewContainer(cfg, db, rdb, grpcClient)
 
-	go container.KafkaWorker.Start(context.Background())
-
 	r := gin.Default()
-
 	r.Use(middleware.GlobalErrorHandler(cfg.GoENV))
+
 	api := r.Group("/api/v1")
 	{
-		api.GET("/workspces/health", func(c *gin.Context) {
+		api.GET("/workspaces/health", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"status": "UP", "redis": rdb != nil})
 		})
 
 		workspace.RegisterRoutes(api, container.WorkspaceCtrl, container.AuthMid)
 	}
 
-	fmt.Printf("Workspace Service running on port %s\n", cfg.Port)
+	fmt.Printf("Workspace API Server running on port %s\n", cfg.Port)
 	r.Run(":" + cfg.Port)
 }

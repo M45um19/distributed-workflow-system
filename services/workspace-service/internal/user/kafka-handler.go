@@ -27,6 +27,4 @@ func (h *KafkaHandler) HandleUserRegistered(ctx context.Context, msg kafka.Messa
 		log.Printf("Error processing user snapshot: %v", err)
 		return
 	}
-
-	log.Printf("Successfully synced user snapshot for: %s", user.Email)
 }
