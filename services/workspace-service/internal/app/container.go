@@ -19,11 +19,12 @@ type Container struct {
 func NewContainer(cfg *config.Config, db *sqlx.DB, rdb *redis.Client, grpc pb.AuthServiceClient) *Container {
 	userRepo := user.NewRepository(db)
 	userSvc := user.NewService(userRepo)
-	userHandler := user.NewKafkaHandler(userSvc)
+	userRegHandler := user.NewUserRegisteredHandler(userSvc)
 
 	// Kafka Setup
-	reader := config.NewKafkaReader(cfg.KafkaBrokers, "user-registered", "workspace-service-user-group")
-	kafkaWorker := NewKafkaWorker(reader, userHandler)
+	regReader := config.NewKafkaReader(cfg.KafkaBrokers, "user-registered", "workspace-registration-group")
+	worker := NewKafkaWorker()
+	worker.AddTopicHandler(regReader, userRegHandler)
 
 	// Workspace Setup
 	wsRepo := workspace.NewRepository(db)
@@ -35,6 +36,6 @@ func NewContainer(cfg *config.Config, db *sqlx.DB, rdb *redis.Client, grpc pb.Au
 	return &Container{
 		WorkspaceCtrl: wsCtrl,
 		AuthMid:       authMid,
-		KafkaWorker:   kafkaWorker,
+		KafkaWorker:   worker,
 	}
 }
