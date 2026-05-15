@@ -32,7 +32,7 @@ func main() {
 
 	log.Println("Workspace Background Worker is running...")
 
-	go container.KafkaWorker.Start(ctx)
+	container.KafkaWorker.Start(ctx)
 
 	<-ctx.Done()
 	log.Println("Shutting down workers gracefully...")
