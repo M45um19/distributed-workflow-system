@@ -8,15 +8,16 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
-type KafkaHandler struct {
+type UserRegisteredHandler struct {
 	svc Service
 }
 
-func NewKafkaHandler(svc Service) *KafkaHandler {
-	return &KafkaHandler{svc: svc}
+func NewUserRegisteredHandler(svc Service) *UserRegisteredHandler {
+	return &UserRegisteredHandler{svc: svc}
 }
 
-func (h *KafkaHandler) HandleUserRegistered(ctx context.Context, msg kafka.Message) {
+func (h *UserRegisteredHandler) Handle(ctx context.Context, msg kafka.Message) {
+
 	var user UserSnapshot
 	if err := json.Unmarshal(msg.Value, &user); err != nil {
 		log.Printf("Error unmarshaling user event: %v", err)
