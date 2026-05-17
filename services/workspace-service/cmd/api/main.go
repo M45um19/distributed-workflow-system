@@ -12,8 +12,6 @@ import (
 	pb "github.com/M45um19/distributed-workflow-system/services/workspace-service/pb/auth"
 
 	"github.com/gin-gonic/gin"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
@@ -30,16 +28,12 @@ func main() {
 
 	rdb := config.ConnectRedis(cfg.RedisURI)
 
-	conn, err := grpc.Dial(cfg.AuthServiceGRPCAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		log.Fatalf("gRPC dial failed: %v", err)
-	}
-	defer conn.Close()
-	grpcClient := pb.NewAuthServiceClient(conn)
+	authConn := config.NewAuthgRPCConnection(cfg.AuthServiceGRPCAddress)
+	defer authConn.Close()
 
-	// Dependency Container
-	container := app.NewContainer(cfg, db, rdb, grpcClient)
+	authGRPCClient := pb.NewAuthServiceClient(authConn)
 
+	container := app.NewContainer(cfg, db, rdb, authGRPCClient, false)
 	r := gin.Default()
 	r.Use(middleware.GlobalErrorHandler(cfg.GoENV))
 

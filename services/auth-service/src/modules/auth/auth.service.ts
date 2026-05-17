@@ -88,7 +88,7 @@ export class AuthService implements IAuthService {
     };
 
     const sessionKey = `session:${user._id.toString()}:${deviceId}`;
-    const ttl = 7 * 24 * 60 * 60; // ৭ দিন সেকেন্ডে
+    const ttl = 7 * 24 * 60 * 60;
 
     await redisService.set(
       sessionKey,
