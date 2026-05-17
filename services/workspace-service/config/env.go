@@ -18,6 +18,7 @@ type Config struct {
 	AuthServiceGRPCAddress string `mapstructure:"AUTH_SERVICE_GRPC_ADDR"`
 	GoENV                  string `mapstructure:"GO_ENV"`
 	KafkaBrokers           string `mapStructure:"KAFKA_BROKERS"`
+	TemporalHost           string `mapStructure:"TEMPORAL_HOST"`
 }
 
 func LoadConfig() (config *Config, err error) {

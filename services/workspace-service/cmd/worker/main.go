@@ -25,14 +25,16 @@ func main() {
 
 	rdb := config.ConnectRedis(cfg.RedisURI)
 
-	container := app.NewContainer(cfg, db, rdb, nil)
+	container := app.NewContainer(cfg, db, rdb, nil, true)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	log.Println("Workspace Background Worker is running...")
 
-	container.KafkaWorker.Start(ctx)
+	go container.KafkaWorker.Start(ctx)
+	// Temporal Worker Start
+	container.TemporalWorker.Start(ctx)
 
 	<-ctx.Done()
 	log.Println("Shutting down workers gracefully...")
