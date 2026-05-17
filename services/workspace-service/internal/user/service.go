@@ -2,22 +2,20 @@ package user
 
 import (
 	"context"
+
+	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/domain"
 )
 
-type Service interface {
-	SyncUserSnapshot(ctx context.Context, user *UserSnapshot) error
-}
-
 type service struct {
-	repo Repository
+	repo domain.UserRepository
 }
 
-func NewService(repo Repository) Service {
+func NewService(repo domain.UserRepository) domain.UserService {
 	return &service{
 		repo: repo,
 	}
 }
 
-func (s *service) SyncUserSnapshot(ctx context.Context, user *UserSnapshot) error {
+func (s *service) SyncUserSnapshot(ctx context.Context, user *domain.UserSnapshot) error {
 	return s.repo.UpsertUser(ctx, user)
 }

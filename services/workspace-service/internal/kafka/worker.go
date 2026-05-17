@@ -1,4 +1,4 @@
-package app
+package kafka
 
 import (
 	"context"
@@ -8,27 +8,27 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
-type EventHandler interface {
+type KafkaEventHandler interface {
 	Handle(ctx context.Context, msg kafka.Message)
 }
 
-type KafkaWorker struct {
+type Worker struct {
 	readers  []*kafka.Reader
-	handlers map[string]EventHandler
+	handlers map[string]KafkaEventHandler
 }
 
-func NewKafkaWorker() *KafkaWorker {
-	return &KafkaWorker{
-		handlers: make(map[string]EventHandler),
+func NewWorker() *Worker {
+	return &Worker{
+		handlers: make(map[string]KafkaEventHandler),
 	}
 }
 
-func (w *KafkaWorker) AddTopicHandler(reader *kafka.Reader, handler EventHandler) {
+func (w *Worker) AddTopicHandler(reader *kafka.Reader, handler KafkaEventHandler) {
 	w.readers = append(w.readers, reader)
 	w.handlers[reader.Config().Topic] = handler
 }
 
-func (w *KafkaWorker) Start(ctx context.Context) {
+func (w *Worker) Start(ctx context.Context) {
 	var wg sync.WaitGroup
 
 	for _, r := range w.readers {
@@ -36,12 +36,12 @@ func (w *KafkaWorker) Start(ctx context.Context) {
 		go func(reader *kafka.Reader) {
 			defer wg.Done()
 			topic := reader.Config().Topic
-			log.Printf("Worker started for topic: %s", topic)
+			log.Printf("Kafka Background Worker started for topic: %s", topic)
 
 			for {
 				select {
 				case <-ctx.Done():
-					log.Printf("Stopping worker for topic: %s", topic)
+					log.Printf("Stopping Kafka worker for topic: %s", topic)
 					reader.Close()
 					return
 				default:
