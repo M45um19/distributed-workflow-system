@@ -5,17 +5,35 @@ import (
 	"log"
 
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/domain"
+	"github.com/M45um19/distributed-workflow-system/services/workspace-service/pkg/email"
 )
 
 type WorkspaceActivities struct {
-	repo domain.WorkspaceRepository
+	repo        domain.WorkspaceRepository
+	emailClient email.EmailClient
 }
 
-func NewWorkspaceActivities(repo domain.WorkspaceRepository) *WorkspaceActivities {
-	return &WorkspaceActivities{repo: repo}
+func NewWorkspaceActivities(repo domain.WorkspaceRepository, mail email.EmailClient) *WorkspaceActivities {
+	return &WorkspaceActivities{
+		repo:        repo,
+		emailClient: mail,
+	}
 }
 
-func (a *WorkspaceActivities) SendInviteEmail(ctx context.Context, email string, token string) error {
-	log.Printf("[Temporal Activity] Email successfully sent to %s with token %s", email, token)
-	return nil
+func (a *WorkspaceActivities) SendInviteEmail(ctx context.Context, to string, token string) error {
+	log.Printf("[Activity] Sending initial invite to %s", to)
+	return a.emailClient.SendInvite(ctx, to, token)
+}
+
+func (a *WorkspaceActivities) SendReminderEmail(ctx context.Context, to string) error {
+	log.Printf("[Activity] Sending 10-day reminder to %s", to)
+	return a.emailClient.SendReminder(ctx, to)
+}
+
+func (a *WorkspaceActivities) CheckInviteStatus(ctx context.Context, token string) (string, error) {
+	invite, err := a.repo.FindInviteByToken(ctx, token)
+	if err != nil {
+		return "", err
+	}
+	return invite.Status, nil
 }

@@ -17,8 +17,12 @@ type Config struct {
 	RedisURI               string `mapstructure:"REDIS_URI"`
 	AuthServiceGRPCAddress string `mapstructure:"AUTH_SERVICE_GRPC_ADDR"`
 	GoENV                  string `mapstructure:"GO_ENV"`
-	KafkaBrokers           string `mapStructure:"KAFKA_BROKERS"`
-	TemporalHost           string `mapStructure:"TEMPORAL_HOST"`
+	KafkaBrokers           string `mapstructure:"KAFKA_BROKERS"`
+	TemporalHost           string `mapstructure:"TEMPORAL_HOST"`
+	SmtpHost               string `mapstructure:"SMTP_HOST"`
+	SmtpPort               string `mapstructure:"SMTP_PORT"`
+	SmtpFrom               string `mapstructure:"FROM"`
+	SmtpPassword           string `mapstructure:"PASSWORD"`
 }
 
 func LoadConfig() (config *Config, err error) {

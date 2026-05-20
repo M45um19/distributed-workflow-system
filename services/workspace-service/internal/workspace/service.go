@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/domain"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/temporal/workflow"
@@ -53,6 +54,21 @@ func (s *service) InviteUser(ctx context.Context, input domain.WorkspaceInviteRe
 	rand.Read(b)
 	input.Token = hex.EncodeToString(b)
 
+	invite := &domain.WorkspaceInvitation{
+		WorkspaceID: input.WorkspaceID,
+		InviterID:   input.InviterID,
+		Email:       input.Email,
+		Role:        input.Role,
+		Token:       input.Token,
+		Status:      "PENDING",
+		ExpiresAt:   time.Now().Add(time.Hour * 24 * 14),
+	}
+
+	if err := s.repo.CreateInvite(ctx, invite); err != nil {
+		log.Printf("Failed to save invitation to DB: %v", err)
+		return apperror.InternalServer("Could not process invitation")
+	}
+
 	workflowOptions := client.StartWorkflowOptions{
 		ID:        fmt.Sprintf("invite-user-%s", input.Email),
 		TaskQueue: "workspace-task-queue",
@@ -63,12 +79,13 @@ func (s *service) InviteUser(ctx context.Context, input domain.WorkspaceInviteRe
 		Role:  input.Role,
 		Token: input.Token,
 	}
-
+	log.Println(wfInput)
 	we, err := s.temporalClient.ExecuteWorkflow(ctx, workflowOptions, workflow.InviteUserWorkflow, wfInput)
 	if err != nil {
 		log.Printf("Temporal Execution Failed: %v", err)
 		return apperror.InternalServer("Temporal error: " + err.Error())
 	}
+
 	log.Printf("Started workflow. WorkflowID: %s, RunID: %s", we.GetID(), we.GetRunID())
 	return nil
 }
