@@ -51,6 +51,18 @@ func (ctrl *Controller) InviteUserHandler(c *gin.Context) {
 		return
 	}
 
+	input.InviterID = c.GetString("user_id")
+
+	input.WorkspaceID = c.Param("id")
+
+	if input.WorkspaceID == "" {
+		c.Error(apperror.BadRequest("workspace_id is required"))
+		return
+	}
+	if input.Role == "" {
+		input.Role = "MEMBER"
+	}
+
 	ctx := c.Request.Context()
 	err := ctrl.service.InviteUser(ctx, input)
 	if err != nil {

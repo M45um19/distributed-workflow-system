@@ -44,3 +44,28 @@ func (r *sqlRepository) GetByOwnerID(ctx context.Context, ownerId string) ([]dom
 
 	return workspaces, nil
 }
+
+func (r *sqlRepository) CreateInvite(ctx context.Context, invite *domain.WorkspaceInvitation) error {
+	query := `
+		INSERT INTO workspace_invitations (workspace_id, inviter_id, email, role, token, status, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id, created_at`
+
+	return r.db.QueryRowContext(
+		ctx, query,
+		invite.WorkspaceID, invite.InviterID, invite.Email,
+		invite.Role, invite.Token, invite.Status, invite.ExpiresAt,
+	).Scan(&invite.ID, &invite.CreatedAt)
+}
+
+func (r *sqlRepository) FindInviteByToken(ctx context.Context, token string) (*domain.WorkspaceInvitation, error) {
+	var invite domain.WorkspaceInvitation
+	query := `SELECT id, workspace_id, inviter_id, email, role, token, status, expires_at, created_at 
+	          FROM workspace_invitations WHERE token = $1`
+
+	err := r.db.GetContext(ctx, &invite, query, token)
+	if err != nil {
+		return nil, err
+	}
+	return &invite, nil
+}
