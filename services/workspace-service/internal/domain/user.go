@@ -7,9 +7,9 @@ import (
 
 type UserSnapshot struct {
 	ID        string    `db:"id" json:"id"`
-	Name      string    `db:"name" json:"name"`
+	FullName  string    `db:"full_name" json:"full_name"`
 	Email     string    `db:"email" json:"email"`
-	Role      string    `db:"role" json:"role"`
+	Role      string    `db:"role" json:"role" binding:"required,oneof=ADMIN USER"`
 	CreatedAt time.Time `db:"created_at" json:"createdAt"`
 }
 
