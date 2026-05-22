@@ -17,10 +17,10 @@ func NewRepository(db *sqlx.DB) domain.UserRepository {
 
 func (r *repository) UpsertUser(ctx context.Context, u *domain.UserSnapshot) error {
 	query := `
-        INSERT INTO users (id, name, email, role, created_at)
-        VALUES (:id, :name, :email, :role, :created_at)
+        INSERT INTO users (id, full_name, email, role, created_at)
+        VALUES (:id, :full_name, :email, :role, :created_at)
         ON CONFLICT (id) DO UPDATE SET
-            name = EXCLUDED.name,
+            full_name = EXCLUDED.full_name,
             email = EXCLUDED.email,
             role = EXCLUDED.role`
 

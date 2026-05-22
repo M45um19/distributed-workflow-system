@@ -1,13 +1,6 @@
 import { Document, Types } from 'mongoose';
 
-export interface IUser {
-  full_name: string;
-  email: string;
-  password_hash: string;
-  role?: string;
-  is_active?: boolean;
-  created_at?: Date
-}
+import { IUser } from './user.validation';
 
 export interface IUserDocument extends IUser, Document {
   _id: Types.ObjectId;

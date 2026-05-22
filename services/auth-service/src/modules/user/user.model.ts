@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 
-import { IUser } from './user.validation';
+import { IUser, UserRole } from './user.validation';
 
 const userSchema = new mongoose.Schema<IUser>({
   full_name: {
@@ -19,6 +19,10 @@ const userSchema = new mongoose.Schema<IUser>({
     type: String,
     required: true,
     select: false,
+  },
+  role: {
+    type: String,
+    enum: Object.values(UserRole.enum)
   },
   avatar_url: {
     type: String,
