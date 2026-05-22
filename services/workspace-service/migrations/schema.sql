@@ -1,9 +1,11 @@
 CREATE TABLE IF NOT EXISTS users (
     id VARCHAR(255) PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
+    full_name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     role VARCHAR(50),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT check_user_role CHECK (role IN ('USER', 'ADMIN'))
 );
 
 
@@ -24,7 +26,7 @@ CREATE INDEX IF NOT EXISTS idx_workspaces_slug ON workspaces(slug);
 
 CREATE TABLE IF NOT EXISTS workspace_invitations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    workspace_id VARCHAR(255) NOT NULL,
+    workspace_id UUID NOT NULL,
     inviter_id VARCHAR(255) NOT NULL,
     email VARCHAR(255) NOT NULL,
     role VARCHAR(50) NOT NULL DEFAULT 'MEMBER',
@@ -36,8 +38,8 @@ CREATE TABLE IF NOT EXISTS workspace_invitations (
     CONSTRAINT fk_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
     CONSTRAINT fk_inviter FOREIGN KEY (inviter_id) REFERENCES users(id) ON DELETE CASCADE,
     
-    CONSTRAINT check_status CHECK (status IN ('PENDING', 'ACCEPTED', 'EXPIRED', 'REVOKED')),
-    CONSTRAINT check_role CHECK (role IN ('ADMIN', 'MEMBER', 'VIEWER'))
+    CONSTRAINT check_workspace_inviation_status CHECK (status IN ('PENDING', 'ACCEPTED', 'EXPIRED', 'REVOKED')),
+    CONSTRAINT check_workspace_role CHECK (role IN ('ADMIN', 'MEMBER', 'VIEWER'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_workspace_invitations_token ON workspace_invitations(token);

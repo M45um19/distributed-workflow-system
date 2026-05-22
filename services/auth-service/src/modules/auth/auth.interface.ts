@@ -7,7 +7,7 @@ export interface AuthResponse {
   refreshToken?: string;
   user: {
     id: string;
-    name: string;
+    full_name: string;
     email: string;
   };
 }
@@ -27,7 +27,7 @@ export interface DeviceMeta {
   deviceName: string;
 }
 export interface IAuthService {
-  register(data: RegisterUserDTO): Promise<AuthResponse["user"]>;
+  register(data: RegisterUserDTO, deviceMeta: DeviceMeta): Promise<AuthResponse>;
   login(data: LoginUserDTO, deviceMeta: DeviceMeta): Promise<AuthResponse>; verifySession(token: string): Promise<SessionVerification>;
 }
 

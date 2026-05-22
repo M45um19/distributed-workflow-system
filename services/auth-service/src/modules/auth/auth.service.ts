@@ -1,4 +1,3 @@
-
 import bcrypt from 'bcryptjs';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 
@@ -11,7 +10,6 @@ import { IUserRepository } from '../user/user.interface';
 import { AuthResponse, IAuthService, SessionVerification } from './auth.interface';
 import { LoginUserDTO, RegisterUserDTO } from './auth.validation';
 
-
 interface AccessTokenPayload extends JwtPayload {
   userId: string;
   deviceId: string;
@@ -20,8 +18,9 @@ interface AccessTokenPayload extends JwtPayload {
 export class AuthService implements IAuthService {
   constructor(private userRepository: IUserRepository) { }
 
-  async register(data: RegisterUserDTO): Promise<AuthResponse["user"]> {
+  async register(data: RegisterUserDTO, deviceMeta: { deviceId: string, ip: string, deviceName: string }): Promise<AuthResponse> {
     const { full_name, email, password } = data;
+    const { deviceId, ip, deviceName } = deviceMeta;
 
     const isUserExist = await this.userRepository.exists(email);
     if (isUserExist) throw new AppError('User already exists', 400);
@@ -32,23 +31,58 @@ export class AuthService implements IAuthService {
     const newUser = await this.userRepository.create({
       full_name,
       email,
-      password_hash: hashedPassword
+      password_hash: hashedPassword,
+      role: 'USER',
+      avatar_url: '',
+      is_active: true
     });
 
-    const userResult = {
+    const userResult: AuthResponse["user"] = {
       id: newUser._id.toString(),
-      name: newUser.full_name,
+      full_name: newUser.full_name,
       email: newUser.email
     };
 
-
     await kafkaConfig.sendMessage('user-registered', {
       ...userResult,
-      role: newUser.role || 'user',
+      role: newUser.role,
       createdAt: newUser.created_at
     });
 
-    return userResult;
+    const accessToken = jwt.sign(
+      { userId: newUser._id.toString(), deviceId: deviceId },
+      env.JWT_ACCESS_SECRET as string,
+      { expiresIn: '15m' }
+    );
+
+    const refreshToken = jwt.sign(
+      { userId: newUser._id.toString() },
+      env.JWT_REFRESH_SECRET as string,
+      { expiresIn: '7d' }
+    );
+
+    const sessionObject = {
+      refreshToken,
+      user: {
+        id: newUser._id.toString(),
+        role: newUser.role || 'user',
+        name: newUser.full_name,
+        email: newUser.email,
+      },
+      meta: { ip, deviceName }
+    };
+
+    const sessionKey = `session:${newUser._id.toString()}:${deviceId}`;
+    const ttl = 7 * 24 * 60 * 60;
+
+    await redisService.set(
+      sessionKey,
+      JSON.stringify(sessionObject),
+      'EX',
+      ttl
+    );
+
+    return {accessToken, refreshToken, user: userResult};
   }
 
   async login(
@@ -65,13 +99,13 @@ export class AuthService implements IAuthService {
     if (!isMatch) throw new AppError("Invalid credentials", 400);
 
     const accessToken = jwt.sign(
-      { userId: user._id, deviceId: deviceId },
+      { userId: user._id.toString(), deviceId: deviceId },
       env.JWT_ACCESS_SECRET as string,
       { expiresIn: '15m' }
     );
 
     const refreshToken = jwt.sign(
-      { userId: user._id },
+      { userId: user._id.toString() },
       env.JWT_REFRESH_SECRET as string,
       { expiresIn: '7d' }
     );
@@ -97,15 +131,17 @@ export class AuthService implements IAuthService {
       ttl
     );
 
-    return {
+    const loginResult: AuthResponse = {
       accessToken,
       refreshToken,
       user: {
         id: user._id.toString(),
-        name: user.full_name,
+        full_name: user.full_name,
         email: user.email
       }
     };
+
+    return loginResult;
   }
 
   async verifySession(token: string): Promise<SessionVerification> {
