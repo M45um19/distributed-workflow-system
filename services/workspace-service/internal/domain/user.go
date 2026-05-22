@@ -15,6 +15,7 @@ type UserSnapshot struct {
 
 type UserRepository interface {
 	UpsertUser(ctx context.Context, u *UserSnapshot) error
+	FindByID(ctx context.Context, id string) (*UserSnapshot, error)
 }
 
 type UserService interface {

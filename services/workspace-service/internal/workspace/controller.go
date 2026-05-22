@@ -72,3 +72,21 @@ func (ctrl *Controller) InviteUserHandler(c *gin.Context) {
 
 	response.SendResponse(c, http.StatusAccepted, true, "Invitation sending in progress", nil)
 }
+
+func (ctrl *Controller) AcceptInvite(c *gin.Context) {
+	var req domain.AcceptInviteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	userID := c.GetString("user_id")
+
+	err := ctrl.service.AcceptInvitation(c.Request.Context(), req.Token, userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Successfully joined the workspace!"})
+}

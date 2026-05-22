@@ -45,3 +45,21 @@ CREATE TABLE IF NOT EXISTS workspace_invitations (
 CREATE INDEX IF NOT EXISTS idx_workspace_invitations_token ON workspace_invitations(token);
 CREATE INDEX IF NOT EXISTS idx_workspace_invitations_email ON workspace_invitations(email);
 CREATE INDEX IF NOT EXISTS idx_workspace_invitations_workspace_id ON workspace_invitations(workspace_id);
+
+
+CREATE TABLE IF NOT EXISTS workspace_members (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id UUID NOT NULL,
+    user_id VARCHAR(255) NOT NULL,
+    role VARCHAR(50) NOT NULL DEFAULT 'MEMBER',
+    joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
+    CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    
+    CONSTRAINT check_workspace_member_role CHECK (role IN ('OWNER', 'ADMIN', 'MEMBER', 'VIEWER')),
+    CONSTRAINT unique_workspace_user UNIQUE (workspace_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_workspace_members_user_id ON workspace_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_workspace_members_workspace_id ON workspace_members(workspace_id);
