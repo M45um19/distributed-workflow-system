@@ -32,7 +32,7 @@ func NewContainer(cfg *config.Config, db *sqlx.DB, rdb *redis.Client, authGRPCCl
 	wsRepo := workspace.NewRepository(db)
 
 	tempClient := config.ConnectTemporal(cfg.TemporalHost)
-	wsSvc := workspace.NewService(wsRepo, tempClient)
+	wsSvc := workspace.NewService(wsRepo, userRepo, tempClient)
 	wsCtrl := workspace.NewController(wsSvc)
 
 	authMid := middleware.NewAuthMiddleware(cfg.JWTSecret, rdb, authGRPCClient)

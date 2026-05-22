@@ -69,3 +69,24 @@ func (r *sqlRepository) FindInviteByToken(ctx context.Context, token string) (*d
 	}
 	return &invite, nil
 }
+
+func (r *sqlRepository) UpdateInviteStatus(ctx context.Context, id string, status string) error {
+	query := `UPDATE workspace_invitations SET status = $1 WHERE id = $2`
+	_, err := r.db.ExecContext(ctx, query, status, id)
+	return err
+}
+
+func (r *sqlRepository) IsMember(ctx context.Context, workspaceID string, userID string) (bool, error) {
+	var exists bool
+	query := `SELECT EXISTS(SELECT 1 FROM workspace_members WHERE workspace_id = $1 AND user_id = $2)`
+	err := r.db.GetContext(ctx, &exists, query, workspaceID, userID)
+	return exists, err
+}
+
+func (r *sqlRepository) AddMember(ctx context.Context, member *domain.WorkspaceMember) error {
+	query := `
+		INSERT INTO workspace_members (workspace_id, user_id, role) 
+		VALUES ($1, $2, $3)`
+	_, err := r.db.ExecContext(ctx, query, member.WorkspaceID, member.UserID, member.Role)
+	return err
+}
