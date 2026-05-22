@@ -19,6 +19,10 @@ type WorkspaceInviteRequest struct {
 	Token       string `json:"token"`
 }
 
+type AcceptInviteRequest struct {
+	Token string `json:"token" binding:"required"`
+}
+
 // model start
 type Workspace struct {
 	ID          string    `db:"id" json:"id"`
@@ -41,6 +45,14 @@ type WorkspaceInvitation struct {
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 }
 
+type WorkspaceMember struct {
+	ID          string    `db:"id" json:"id"`
+	WorkspaceID string    `db:"workspace_id" json:"workspace_id"`
+	UserID      string    `db:"user_id" json:"user_id"`
+	Role        string    `db:"role" json:"role" binding:"required,oneof=ADMIN MEMBER VIEWER"`
+	JoinedAt    time.Time `db:"joined_at" json:"joined_at"`
+}
+
 //model end
 
 type WorkspaceRepository interface {
@@ -50,10 +62,16 @@ type WorkspaceRepository interface {
 
 	CreateInvite(ctx context.Context, invite *WorkspaceInvitation) error
 	FindInviteByToken(ctx context.Context, token string) (*WorkspaceInvitation, error)
+
+	UpdateInviteStatus(ctx context.Context, id string, status string) error
+
+	AddMember(ctx context.Context, member *WorkspaceMember) error
+	IsMember(ctx context.Context, workspaceID, userID string) (bool, error)
 }
 
 type WorkspaceService interface {
 	CreateWorkspace(ctx context.Context, input WorkspaceCreateInput, ownerID string) (*Workspace, error)
 	GetUserWorkspaces(ctx context.Context, ownerId string) ([]Workspace, error)
 	InviteUser(ctx context.Context, input WorkspaceInviteRequest) error
+	AcceptInvitation(ctx context.Context, token string, loggedInUserID string) error
 }

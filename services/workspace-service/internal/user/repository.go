@@ -27,3 +27,13 @@ func (r *repository) UpsertUser(ctx context.Context, u *domain.UserSnapshot) err
 	_, err := r.db.NamedExecContext(ctx, query, u)
 	return err
 }
+
+func (r *repository) FindByID(ctx context.Context, id string) (*domain.UserSnapshot, error) {
+	var u domain.UserSnapshot
+	query := `SELECT id, full_name, email, role, created_at FROM users WHERE id = $1`
+	err := r.db.GetContext(ctx, &u, query, id)
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}

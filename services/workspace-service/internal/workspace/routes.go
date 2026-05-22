@@ -11,5 +11,6 @@ func RegisterRoutes(r *gin.RouterGroup, ctrl *Controller, authMid *middleware.Au
 		workspaceGroup.POST("/", authMid.Protect(), ctrl.CreateWorkspace)
 		workspaceGroup.GET("/", authMid.Protect(), ctrl.ListWorkspaces)
 		workspaceGroup.POST("/:id/invite", authMid.Protect(), ctrl.InviteUserHandler)
+		workspaceGroup.POST("/invitations/accept", authMid.Protect(), ctrl.AcceptInvite)
 	}
 }

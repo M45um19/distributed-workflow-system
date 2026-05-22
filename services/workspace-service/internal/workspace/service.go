@@ -2,8 +2,6 @@ package workspace
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"log"
 	"time"
@@ -11,17 +9,20 @@ import (
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/domain"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/temporal/workflow"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/pkg/apperror"
+	"github.com/google/uuid"
 	"go.temporal.io/sdk/client"
 )
 
 type service struct {
 	repo           domain.WorkspaceRepository
+	userRepo       domain.UserRepository
 	temporalClient client.Client
 }
 
-func NewService(repo domain.WorkspaceRepository, tempClient client.Client) domain.WorkspaceService {
+func NewService(repo domain.WorkspaceRepository, userRepo domain.UserRepository, tempClient client.Client) domain.WorkspaceService {
 	return &service{
 		repo:           repo,
+		userRepo:       userRepo,
 		temporalClient: tempClient,
 	}
 }
@@ -50,9 +51,8 @@ func (s *service) GetUserWorkspaces(ctx context.Context, ownerId string) ([]doma
 }
 
 func (s *service) InviteUser(ctx context.Context, input domain.WorkspaceInviteRequest) error {
-	b := make([]byte, 16)
-	rand.Read(b)
-	input.Token = hex.EncodeToString(b)
+
+	input.Token = uuid.New().String()
 
 	invite := &domain.WorkspaceInvitation{
 		WorkspaceID: input.WorkspaceID,
@@ -87,5 +87,53 @@ func (s *service) InviteUser(ctx context.Context, input domain.WorkspaceInviteRe
 	}
 
 	log.Printf("Started workflow. WorkflowID: %s, RunID: %s", we.GetID(), we.GetRunID())
+	return nil
+}
+
+func (s *service) AcceptInvitation(ctx context.Context, token string, loggedInUserID string) error {
+	invite, err := s.repo.FindInviteByToken(ctx, token)
+	if err != nil {
+		return apperror.NotFound("Invitation link is invalid or does not exist")
+	}
+
+	if invite.Status != "PENDING" {
+		return apperror.BadRequest("This invitation has already been " + invite.Status)
+	}
+
+	if time.Now().After(invite.ExpiresAt) {
+		_ = s.repo.UpdateInviteStatus(ctx, invite.ID, "EXPIRED")
+		return apperror.BadRequest("This invitation link has expired")
+	}
+
+	currentUser, err := s.userRepo.FindByID(ctx, loggedInUserID)
+	if err != nil {
+		return apperror.NotFound("Logged in user not found in the system")
+	}
+
+	if invite.Email != currentUser.Email {
+		return apperror.Forbidden("This invitation was sent to a different email address. Please login with the correct account.")
+	}
+
+	alreadyMember, err := s.repo.IsMember(ctx, invite.WorkspaceID, loggedInUserID)
+	if err == nil && alreadyMember {
+		_ = s.repo.UpdateInviteStatus(ctx, invite.ID, "ACCEPTED")
+		return apperror.BadRequest("You are already a member of this workspace")
+	}
+
+	member := &domain.WorkspaceMember{
+		WorkspaceID: invite.WorkspaceID,
+		UserID:      loggedInUserID,
+		Role:        invite.Role,
+	}
+
+	if err := s.repo.AddMember(ctx, member); err != nil {
+		log.Printf("Failed to add member to workspace: %v", err)
+		return apperror.InternalServer("Could not accept invitation")
+	}
+
+	if err := s.repo.UpdateInviteStatus(ctx, invite.ID, "ACCEPTED"); err != nil {
+		log.Printf("Failed to update invite status: %v", err)
+	}
+
 	return nil
 }
