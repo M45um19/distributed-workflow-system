@@ -34,8 +34,8 @@ func (ctrl *Controller) CreateWorkspace(c *gin.Context) {
 	response.SendResponse(c, http.StatusCreated, true, "Workspace created successfully!", result)
 }
 
-func (ctrl *Controller) ListWorkspaces(c *gin.Context) {
-	workspaces, err := ctrl.service.GetUserWorkspaces(c.Request.Context(), c.GetString("user_id"))
+func (ctrl *Controller) ListWorkspacesByOwner(c *gin.Context) {
+	workspaces, err := ctrl.service.GetWorkspacesByOwner(c.Request.Context(), c.GetString("user_id"))
 	if err != nil {
 		c.Error(err)
 		return
@@ -44,7 +44,7 @@ func (ctrl *Controller) ListWorkspaces(c *gin.Context) {
 	response.SendResponse(c, http.StatusOK, true, "All workspace fetch successful", workspaces)
 }
 
-func (ctrl *Controller) InviteUserHandler(c *gin.Context) {
+func (ctrl *Controller) InviteUser(c *gin.Context) {
 	var input domain.WorkspaceInviteRequest
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.Error(apperror.BadRequest("Validation failed: " + err.Error()))
@@ -89,4 +89,16 @@ func (ctrl *Controller) AcceptInvite(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Successfully joined the workspace!"})
+}
+
+func (ctrl *Controller) ListWorkspacesByMember(c *gin.Context) {
+	userID := c.GetString("user_id")
+
+	workspaces, err := ctrl.service.GetWorkspacesByMember(c.Request.Context(), userID)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	response.SendResponse(c, http.StatusOK, true, "Member workspaces fetched successfully", workspaces)
 }
