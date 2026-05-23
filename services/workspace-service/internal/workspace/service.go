@@ -46,7 +46,7 @@ func (s *service) CreateWorkspace(ctx context.Context, input domain.WorkspaceCre
 	return ws, nil
 }
 
-func (s *service) GetUserWorkspaces(ctx context.Context, ownerId string) ([]domain.Workspace, error) {
+func (s *service) GetWorkspacesByOwner(ctx context.Context, ownerId string) ([]domain.Workspace, error) {
 	return s.repo.GetByOwnerID(ctx, ownerId)
 }
 
@@ -136,4 +136,8 @@ func (s *service) AcceptInvitation(ctx context.Context, token string, loggedInUs
 	}
 
 	return nil
+}
+
+func (s *service) GetWorkspacesByMember(ctx context.Context, userID string) ([]domain.Workspace, error) {
+	return s.repo.GetByMemberID(ctx, userID)
 }

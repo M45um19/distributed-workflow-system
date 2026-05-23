@@ -9,8 +9,10 @@ func RegisterRoutes(r *gin.RouterGroup, ctrl *Controller, authMid *middleware.Au
 	workspaceGroup := r.Group("/workspaces")
 	{
 		workspaceGroup.POST("/", authMid.Protect(), ctrl.CreateWorkspace)
-		workspaceGroup.GET("/", authMid.Protect(), ctrl.ListWorkspaces)
-		workspaceGroup.POST("/:id/invite", authMid.Protect(), ctrl.InviteUserHandler)
+		workspaceGroup.GET("/", authMid.Protect(), ctrl.ListWorkspacesByOwner)
+
+		workspaceGroup.GET("/member", authMid.Protect(), ctrl.ListWorkspacesByMember)
+		workspaceGroup.POST("/:id/invite", authMid.Protect(), ctrl.InviteUser)
 		workspaceGroup.POST("/invitations/accept", authMid.Protect(), ctrl.AcceptInvite)
 	}
 }

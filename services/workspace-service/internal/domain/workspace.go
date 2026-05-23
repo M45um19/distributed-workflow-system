@@ -59,6 +59,7 @@ type WorkspaceRepository interface {
 	Create(ctx context.Context, ws *Workspace) error
 	FindBySlug(ctx context.Context, slug string) (*Workspace, error)
 	GetByOwnerID(ctx context.Context, ownerId string) ([]Workspace, error)
+	GetByMemberID(ctx context.Context, userID string) ([]Workspace, error)
 
 	CreateInvite(ctx context.Context, invite *WorkspaceInvitation) error
 	FindInviteByToken(ctx context.Context, token string) (*WorkspaceInvitation, error)
@@ -71,7 +72,8 @@ type WorkspaceRepository interface {
 
 type WorkspaceService interface {
 	CreateWorkspace(ctx context.Context, input WorkspaceCreateInput, ownerID string) (*Workspace, error)
-	GetUserWorkspaces(ctx context.Context, ownerId string) ([]Workspace, error)
+	GetWorkspacesByOwner(ctx context.Context, ownerId string) ([]Workspace, error)
+	GetWorkspacesByMember(ctx context.Context, userID string) ([]Workspace, error)
 	InviteUser(ctx context.Context, input WorkspaceInviteRequest) error
 	AcceptInvitation(ctx context.Context, token string, loggedInUserID string) error
 }
