@@ -90,3 +90,25 @@ func (r *sqlRepository) AddMember(ctx context.Context, member *domain.WorkspaceM
 	_, err := r.db.ExecContext(ctx, query, member.WorkspaceID, member.UserID, member.Role)
 	return err
 }
+
+func (r *sqlRepository) GetByMemberID(ctx context.Context, userID string) ([]domain.Workspace, error) {
+	var workspaces []domain.Workspace
+
+	query := `
+        SELECT w.id, w.name, w.slug, w.owner_id, w.description, w.created_at 
+        FROM workspaces w
+        INNER JOIN workspace_members wm ON w.id = wm.workspace_id
+        WHERE wm.user_id = $1
+        ORDER BY w.created_at DESC`
+
+	err := r.db.SelectContext(ctx, &workspaces, query, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	if workspaces == nil {
+		workspaces = []domain.Workspace{}
+	}
+
+	return workspaces, nil
+}
