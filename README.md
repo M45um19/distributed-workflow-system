@@ -152,7 +152,6 @@ The core objective of the project is to provide a seamless collaborative experie
   - Wait for completion signal
   - Trigger escalation if overdue
 
-
 ---
 
 ## Targeted Event Routing
