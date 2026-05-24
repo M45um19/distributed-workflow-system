@@ -76,7 +76,7 @@ func (ctrl *Controller) InviteUser(c *gin.Context) {
 func (ctrl *Controller) AcceptInvite(c *gin.Context) {
 	var req domain.AcceptInviteRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.Error(apperror.BadRequest("Validation failed: " + err.Error()))
 		return
 	}
 
@@ -84,11 +84,11 @@ func (ctrl *Controller) AcceptInvite(c *gin.Context) {
 
 	err := ctrl.service.AcceptInvitation(c.Request.Context(), req.Token, userID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.Error(err)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Successfully joined the workspace!"})
+	response.SendResponse(c, http.StatusOK, true, "Successfully joined the workspace!", nil)
 }
 
 func (ctrl *Controller) ListWorkspacesByMember(c *gin.Context) {

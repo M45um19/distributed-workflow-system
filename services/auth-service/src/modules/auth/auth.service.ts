@@ -56,7 +56,7 @@ export class AuthService implements IAuthService {
     );
 
     const refreshToken = jwt.sign(
-      { userId: newUser._id.toString() },
+      { userId: newUser._id.toString(), deviceId: deviceId},
       env.JWT_REFRESH_SECRET as string,
       { expiresIn: '7d' }
     );
@@ -105,7 +105,7 @@ export class AuthService implements IAuthService {
     );
 
     const refreshToken = jwt.sign(
-      { userId: user._id.toString() },
+      { userId: user._id.toString(), deviceId: deviceId },
       env.JWT_REFRESH_SECRET as string,
       { expiresIn: '7d' }
     );
