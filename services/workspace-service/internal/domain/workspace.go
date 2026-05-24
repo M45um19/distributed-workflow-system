@@ -23,6 +23,14 @@ type AcceptInviteRequest struct {
 	Token string `json:"token" binding:"required"`
 }
 
+type WorkspaceMemberResponse struct {
+	UserID   string    `db:"user_id" json:"user_id"`
+	FullName string    `db:"full_name" json:"full_name"`
+	Email    string    `db:"email" json:"email"`
+	Role     string    `db:"role" json:"role"`
+	JoinedAt time.Time `db:"joined_at" json:"joined_at"`
+}
+
 // model start
 type Workspace struct {
 	ID          string    `db:"id" json:"id"`
@@ -68,6 +76,8 @@ type WorkspaceRepository interface {
 
 	AddMember(ctx context.Context, member *WorkspaceMember) error
 	IsMember(ctx context.Context, workspaceID, userID string) (bool, error)
+	FindByID(ctx context.Context, id string) (*Workspace, error)
+	GetMembers(ctx context.Context, workspaceID string) ([]WorkspaceMemberResponse, error)
 }
 
 type WorkspaceService interface {
@@ -76,4 +86,5 @@ type WorkspaceService interface {
 	GetWorkspacesByMember(ctx context.Context, userID string) ([]Workspace, error)
 	InviteUser(ctx context.Context, input WorkspaceInviteRequest) error
 	AcceptInvitation(ctx context.Context, token string, loggedInUserID string) error
+	GetWorkspaceMembers(ctx context.Context, workspaceID string, userID string) ([]WorkspaceMemberResponse, error)
 }

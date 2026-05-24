@@ -141,3 +141,27 @@ func (s *service) AcceptInvitation(ctx context.Context, token string, loggedInUs
 func (s *service) GetWorkspacesByMember(ctx context.Context, userID string) ([]domain.Workspace, error) {
 	return s.repo.GetByMemberID(ctx, userID)
 }
+
+func (s *service) GetWorkspaceMembers(ctx context.Context, workspaceID string, userID string) ([]domain.WorkspaceMemberResponse, error) {
+	ws, err := s.repo.FindByID(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	if ws == nil {
+		return nil, apperror.NotFound("Workspace not found")
+	}
+
+	if ws.OwnerID == userID {
+		return s.repo.GetMembers(ctx, workspaceID)
+	}
+
+	isMember, err := s.repo.IsMember(ctx, workspaceID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !isMember {
+		return nil, apperror.Forbidden("You do not have permission to view this workspace's members")
+	}
+
+	return s.repo.GetMembers(ctx, workspaceID)
+}
