@@ -52,17 +52,16 @@ The core objective of the project is to provide a seamless collaborative experie
 
 ### 1. Auth & Workspace Service (Node.js)
 
-**Responsibility:** Authentication, session management, workspace membership  
+**Responsibility:** Authentication, session management
 **Database:** MongoDB + Redis  
 
 #### API
 
-| Method | Endpoint | Description | Auth |
-|-------|---------|------------|------|
-| POST | /api/v1/auth/register | Register user | No |
-| POST | /api/v1/auth/login | Login (JWT + Refresh Token) | No |
-| POST | /api/v1/auth/logout | Logout & blacklist token | Yes |
-
+| Method | Endpoint | Description | Auth | Sample Input |
+| :--- | :--- | :--- | :--- | :--- |
+| POST | `/api/v1/auth/register` | Register user | No | `{"full_name": "test", "email": "test@test.com", "password": "test1234"}` |
+| POST | `/api/v1/auth/login` | Login (JWT + Refresh Token) | No | `{"email": "test@test.com", "password": "test1234"}` |
+| POST | `/api/v1/auth/logout` | Logout & blacklist token | Yes |  |
 
 #### gRPC (Internal)
 | Method | Request | Response | Description |
@@ -81,24 +80,25 @@ The core objective of the project is to provide a seamless collaborative experie
 
 #### API
 
-| Method | Endpoint | Description | Auth |
-|-------|---------|------------|------|
-| POST | /api/v1/workspaces | Create workspace | Yes |
-| GET | /api/v1/workspaces | List workspaces | Yes |
-| POST | /api/v1/workspaces/:id/invite | Invite member | Yes |
-| GET | /api/v1/workspaces/:id/members | Get members | Yes |
-| POST | /api/v1/projects | Create project | Yes |
-| GET | /api/v1/projects/:id | Get project (cached) | Yes |
-| POST | /api/v1/tasks | Create task (Temporal workflow) | Yes |
-| GET | /api/v1/tasks/:id | Get task | Yes |
-| PATCH | /api/v1/tasks/:id | Update task | Yes |
-| POST | /api/v1/tasks/:id/comments | Add comment | Yes |
+| Method | Endpoint | Description | Auth | Sample Input |
+| :--- | :--- | :--- | :--- | :--- |
+| POST | `/api/v1/workspaces` | Create workspace | Yes | `{"name": "test", "slug": "test", "description": "test"}` |
+| GET | `/api/v1/workspaces` | List workspaces (Owner) | Yes | |
+| GET | `/api/v1/workspaces` | List workspaces (Member) | Yes | |
+| POST | `/api/v1/workspaces/:id/invite` | Invite member | Yes | `{"email": "test@test.com", "role": "ADMIN"}` |
+| POST | `/api/v1/workspaces/invitations/accept` | Accept invite | Yes | `{"token": "6fa7dfcd-bfa2-4e13-bdb4-6e7fcb8ee8b5"}` |
+| GET | `/api/v1/workspaces/:id/members` | Get members | Yes | |
+| POST | `/api/v1/projects` | Create project | Yes | |
+| GET | `/api/v1/projects/:id` | Get project (cached) | Yes | |
+| POST | `/api/v1/tasks` | Create task (Temporal workflow) | Yes | |
+| GET | `/api/v1/tasks/:id` | Get task | Yes | |
+| PATCH | `/api/v1/tasks/:id` | Update task | Yes | |
+| POST | `/api/v1/tasks/:id/comments` | Add comment | Yes | |
 
 
 #### gRPC
 
 - VerifyUser(UserID)
-- GetWorkspaceContext(WSID)
 
 ---
 
@@ -135,6 +135,14 @@ The core objective of the project is to provide a seamless collaborative experie
 
 ## Temporal Workflows
 
+### Workspace Invite Workflow
+
+- Trigger: Workflow invite with expire date
+- Steps:
+  - Send a invite email to the workspace with 14 days expire
+  - After 10 days send a reminder email
+  - After 14 daya maark it as a rexpired
+
 ### TaskManagementWorkflow
 
 - Trigger: Task creation with deadline
@@ -144,11 +152,6 @@ The core objective of the project is to provide a seamless collaborative experie
   - Wait for completion signal
   - Trigger escalation if overdue
 
-### RecurringTaskWorkflow
-
-- Trigger: Cron schedule
-- Action:
-  - Auto-create recurring tasks via gRPC
 
 ---
 
