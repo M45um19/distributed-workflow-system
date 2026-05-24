@@ -2,6 +2,8 @@ package workspace
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/domain"
 	"github.com/jmoiron/sqlx"
@@ -111,4 +113,57 @@ func (r *sqlRepository) GetByMemberID(ctx context.Context, userID string) ([]dom
 	}
 
 	return workspaces, nil
+}
+
+func (r *sqlRepository) FindByID(ctx context.Context, id string) (*domain.Workspace, error) {
+	var ws domain.Workspace
+	query := `SELECT id, name, slug, owner_id, description, created_at FROM workspaces WHERE id = $1`
+
+	err := r.db.GetContext(ctx, &ws, query, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &ws, nil
+}
+
+func (r *sqlRepository) GetMembers(ctx context.Context, workspaceID string) ([]domain.WorkspaceMemberResponse, error) {
+	var members []domain.WorkspaceMemberResponse
+
+	query := `
+		SELECT 
+			w.owner_id AS user_id,
+			u.full_name,
+			u.email,
+			'OWNER' AS role,
+			w.created_at AS joined_at
+		FROM workspaces w
+		INNER JOIN users u ON w.owner_id = u.id
+		WHERE w.id = $1
+
+		UNION ALL
+
+		SELECT 
+			wm.user_id,
+			u.full_name,
+			u.email,
+			wm.role,
+			wm.joined_at
+		FROM workspace_members wm
+		INNER JOIN users u ON wm.user_id = u.id
+		WHERE wm.workspace_id = $1
+		ORDER BY joined_at ASC`
+
+	err := r.db.SelectContext(ctx, &members, query, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+
+	if members == nil {
+		members = []domain.WorkspaceMemberResponse{}
+	}
+
+	return members, nil
 }

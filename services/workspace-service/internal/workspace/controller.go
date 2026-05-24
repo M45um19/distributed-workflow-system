@@ -102,3 +102,21 @@ func (ctrl *Controller) ListWorkspacesByMember(c *gin.Context) {
 
 	response.SendResponse(c, http.StatusOK, true, "Member workspaces fetched successfully", workspaces)
 }
+
+func (ctrl *Controller) GetWorkspaceMembersHandler(c *gin.Context) {
+	workspaceID := c.Param("id")
+	if workspaceID == "" {
+		c.Error(apperror.BadRequest("Workspace ID is required"))
+		return
+	}
+
+	userID := c.GetString("user_id")
+
+	members, err := ctrl.service.GetWorkspaceMembers(c.Request.Context(), workspaceID, userID)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	response.SendResponse(c, http.StatusOK, true, "Workspace members fetched successfully", members)
+}
