@@ -48,7 +48,7 @@ type WorkspaceInvitation struct {
 	Email       string    `db:"email" json:"email"`
 	Role        string    `db:"role" json:"role"`
 	Token       string    `db:"token" json:"token"`
-	Status      string    `db:"status" json:"status"`
+	Status      string    `db:"status" json:"status" binding:"required,oneof=PENDING ACCEPTED EXPIRED REVOKED"`
 	ExpiresAt   time.Time `db:"expires_at" json:"expires_at"`
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 }
@@ -78,6 +78,7 @@ type WorkspaceRepository interface {
 	IsMember(ctx context.Context, workspaceID, userID string) (bool, error)
 	FindByID(ctx context.Context, id string) (*Workspace, error)
 	GetMembers(ctx context.Context, workspaceID string) ([]WorkspaceMemberResponse, error)
+	GetMemberRole(ctx context.Context, workspaceID, userID string) (string, error)
 }
 
 type WorkspaceService interface {

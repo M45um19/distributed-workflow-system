@@ -4,6 +4,7 @@ import (
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/config"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/kafka"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/middleware"
+	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/project"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/temporal"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/temporal/activity"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/temporal/workflow"
@@ -19,6 +20,7 @@ import (
 
 type Container struct {
 	WorkspaceCtrl  *workspace.Controller
+	ProjectCtrl    *project.Controller
 	AuthMid        *middleware.AuthMiddleware
 	KafkaWorker    *kafka.Worker
 	TemporalWorker *temporal.Worker
@@ -30,30 +32,32 @@ func NewContainer(cfg *config.Config, db *sqlx.DB, rdb *redis.Client, authGRPCCl
 	userSvc := user.NewService(userRepo)
 
 	wsRepo := workspace.NewRepository(db)
+	projectRepo := project.NewRepository(db)
 
 	tempClient := config.ConnectTemporal(cfg.TemporalHost)
 	wsSvc := workspace.NewService(wsRepo, userRepo, tempClient)
 	wsCtrl := workspace.NewController(wsSvc)
 
+	projectSvc := project.NewService(projectRepo, wsRepo)
+	projectCtrl := project.NewController(projectSvc)
+
 	authMid := middleware.NewAuthMiddleware(cfg.JWTSecret, rdb, authGRPCClient)
 
 	container := &Container{
 		WorkspaceCtrl:  wsCtrl,
+		ProjectCtrl:    projectCtrl,
 		AuthMid:        authMid,
 		TemporalClient: tempClient,
 	}
 
 	if isWorker {
-
 		emailClient := email.NewGmailClient(cfg.SmtpHost, cfg.SmtpPort, cfg.SmtpFrom, cfg.SmtpPassword)
-		// Kafka Setup
 		userRegHandler := kafka.NewUserRegisteredHandler(userSvc)
 		regReader := config.NewKafkaReader(cfg.KafkaBrokers, "user-registered", "workspace-registration-group")
 		kWorker := kafka.NewWorker()
 		kWorker.AddTopicHandler(regReader, userRegHandler)
 		container.KafkaWorker = kWorker
 
-		// Temporal Worker Setup
 		tempWorker := temporal.NewWorker(tempClient, "workspace-task-queue")
 		tempWorker.Register(func(w temporalWorker.Worker) {
 			wsActivities := activity.NewWorkspaceActivities(wsRepo, emailClient)

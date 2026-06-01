@@ -5,7 +5,7 @@ import (
 )
 
 type IApiResponse struct {
-	StatusCode int16       `json:"statusCode`
+	StatusCode int16       `json:"statusCode"`
 	Success    bool        `json:"success"`
 	Message    string      `json:"message"`
 	Meta       interface{} `json:"meta,omitempty"`

@@ -1,0 +1,37 @@
+package project
+
+import (
+	"context"
+
+	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/domain"
+	"github.com/jmoiron/sqlx"
+)
+
+type sqlRepository struct {
+	db *sqlx.DB
+}
+
+func NewRepository(db *sqlx.DB) domain.ProjectRepository {
+	return &sqlRepository{db: db}
+}
+
+func (r *sqlRepository) Create(ctx context.Context, p *domain.Project) error {
+	query := `
+		INSERT INTO projects (workspace_id, name, description, status, created_by) 
+		VALUES ($1, $2, $3, $4, $5) 
+		RETURNING id, status, created_at`
+	return r.db.QueryRowContext(ctx, query, p.WorkspaceID, p.Name, p.Description, p.Status, p.CreatedBy).Scan(&p.ID, &p.Status, &p.CreatedAt)
+}
+
+func (r *sqlRepository) GetByWorkspaceID(ctx context.Context, workspaceID string) ([]domain.Project, error) {
+	var projects []domain.Project
+	query := `SELECT id, workspace_id, name, description, status, created_by, created_at FROM projects WHERE workspace_id = $1 ORDER BY created_at DESC`
+	err := r.db.SelectContext(ctx, &projects, query, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	if projects == nil {
+		projects = []domain.Project{}
+	}
+	return projects, nil
+}
