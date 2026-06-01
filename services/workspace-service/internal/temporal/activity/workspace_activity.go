@@ -37,3 +37,18 @@ func (a *WorkspaceActivities) CheckInviteStatus(ctx context.Context, token strin
 	}
 	return invite.Status, nil
 }
+
+func (a *WorkspaceActivities) ExpireInvite(ctx context.Context, token string) error {
+	log.Printf("[Activity] Expiring invite token: %s", token)
+
+	invite, err := a.repo.FindInviteByToken(ctx, token)
+	if err != nil {
+		return err
+	}
+
+	if invite.Status != "PENDING" {
+		return nil
+	}
+
+	return a.repo.UpdateInviteStatus(ctx, invite.ID, "EXPIRED")
+}
