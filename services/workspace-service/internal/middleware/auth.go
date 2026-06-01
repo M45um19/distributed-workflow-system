@@ -1,13 +1,12 @@
 package middleware
 
 import (
-	"context"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
 	pb "github.com/M45um19/distributed-workflow-system/services/workspace-service/pb/auth"
+	"github.com/M45um19/distributed-workflow-system/services/workspace-service/pkg/apperror"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -31,19 +30,27 @@ func (m *AuthMiddleware) Protect() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
+			c.Error(apperror.Unauthorized("Authorization header is required"))
+			c.Abort()
 			return
 		}
 
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 
-		token, _ := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 			return []byte(m.secret), nil
 		})
 
+		if err != nil || token == nil {
+			c.Error(apperror.Unauthorized("Invalid or expired token"))
+			c.Abort()
+			return
+		}
+
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if !ok || !token.Valid {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+			c.Error(apperror.Unauthorized("Invalid token claims"))
+			c.Abort()
 			return
 		}
 
@@ -51,23 +58,25 @@ func (m *AuthMiddleware) Protect() gin.HandlerFunc {
 		deviceId := fmt.Sprintf("%v", claims["deviceId"])
 		redisKey := fmt.Sprintf("session:%s:%s", userID, deviceId)
 
-		sessionData, err := m.rdb.Get(context.Background(), redisKey).Result()
+		// Check local cache session
+		sessionData, err := m.rdb.Get(c.Request.Context(), redisKey).Result()
 		if err == nil && sessionData != "" {
 			c.Set("user_id", userID)
 			c.Next()
 			return
 		}
 
-		resp, err := m.grpcClient.VerifySession(context.Background(), &pb.VerifyRequest{
+		resp, err := m.grpcClient.VerifySession(c.Request.Context(), &pb.VerifyRequest{
 			Token: tokenString,
 		})
 
 		if err != nil || !resp.IsValid {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Session expired", "details": "gRPC check failed"})
+			c.Error(apperror.Unauthorized("Session expired or invalid"))
+			c.Abort()
 			return
 		}
 
-		m.rdb.Set(context.Background(), redisKey, "active", 15*time.Minute)
+		m.rdb.Set(c.Request.Context(), redisKey, "active", 15*time.Minute)
 		c.Set("user_id", resp.UserId)
 		c.Next()
 	}

@@ -49,6 +49,10 @@ func InviteUserWorkflow(ctx workflow.Context, data WorkspaceInviteRequest) error
 
 		_ = workflow.Sleep(ctx, time.Hour*24*4)
 
+		err = workflow.ExecuteActivity(ctx, a.ExpireInvite, data.Token).Get(ctx, nil)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

@@ -14,21 +14,21 @@ import (
 )
 
 type service struct {
-	repo           domain.WorkspaceRepository
+	wsRepo         domain.WorkspaceRepository
 	userRepo       domain.UserRepository
 	temporalClient client.Client
 }
 
-func NewService(repo domain.WorkspaceRepository, userRepo domain.UserRepository, tempClient client.Client) domain.WorkspaceService {
+func NewService(wsRepo domain.WorkspaceRepository, userRepo domain.UserRepository, tempClient client.Client) domain.WorkspaceService {
 	return &service{
-		repo:           repo,
+		wsRepo:         wsRepo,
 		userRepo:       userRepo,
 		temporalClient: tempClient,
 	}
 }
 
 func (s *service) CreateWorkspace(ctx context.Context, input domain.WorkspaceCreateInput, ownerID string) (*domain.Workspace, error) {
-	exists, _ := s.repo.FindBySlug(ctx, input.Slug)
+	exists, _ := s.wsRepo.FindBySlug(ctx, input.Slug)
 	if exists != nil {
 		return nil, apperror.BadRequest("workspace with this slug already exists")
 	}
@@ -40,14 +40,14 @@ func (s *service) CreateWorkspace(ctx context.Context, input domain.WorkspaceCre
 		OwnerID:     ownerID,
 	}
 
-	if err := s.repo.Create(ctx, ws); err != nil {
+	if err := s.wsRepo.Create(ctx, ws); err != nil {
 		return nil, err
 	}
 	return ws, nil
 }
 
 func (s *service) GetWorkspacesByOwner(ctx context.Context, ownerId string) ([]domain.Workspace, error) {
-	return s.repo.GetByOwnerID(ctx, ownerId)
+	return s.wsRepo.GetByOwnerID(ctx, ownerId)
 }
 
 func (s *service) InviteUser(ctx context.Context, input domain.WorkspaceInviteRequest) error {
@@ -64,7 +64,7 @@ func (s *service) InviteUser(ctx context.Context, input domain.WorkspaceInviteRe
 		ExpiresAt:   time.Now().Add(time.Hour * 24 * 14),
 	}
 
-	if err := s.repo.CreateInvite(ctx, invite); err != nil {
+	if err := s.wsRepo.CreateInvite(ctx, invite); err != nil {
 		log.Printf("Failed to save invitation to DB: %v", err)
 		return apperror.InternalServer("Could not process invitation")
 	}
@@ -91,7 +91,7 @@ func (s *service) InviteUser(ctx context.Context, input domain.WorkspaceInviteRe
 }
 
 func (s *service) AcceptInvitation(ctx context.Context, token string, loggedInUserID string) error {
-	invite, err := s.repo.FindInviteByToken(ctx, token)
+	invite, err := s.wsRepo.FindInviteByToken(ctx, token)
 	if err != nil {
 		return apperror.NotFound("Invitation link is invalid or does not exist")
 	}
@@ -101,7 +101,7 @@ func (s *service) AcceptInvitation(ctx context.Context, token string, loggedInUs
 	}
 
 	if time.Now().After(invite.ExpiresAt) {
-		_ = s.repo.UpdateInviteStatus(ctx, invite.ID, "EXPIRED")
+		_ = s.wsRepo.UpdateInviteStatus(ctx, invite.ID, "EXPIRED")
 		return apperror.BadRequest("This invitation link has expired")
 	}
 
@@ -114,9 +114,9 @@ func (s *service) AcceptInvitation(ctx context.Context, token string, loggedInUs
 		return apperror.Forbidden("This invitation was sent to a different email address. Please login with the correct account.")
 	}
 
-	alreadyMember, err := s.repo.IsMember(ctx, invite.WorkspaceID, loggedInUserID)
+	alreadyMember, err := s.wsRepo.IsMember(ctx, invite.WorkspaceID, loggedInUserID)
 	if err == nil && alreadyMember {
-		_ = s.repo.UpdateInviteStatus(ctx, invite.ID, "ACCEPTED")
+		_ = s.wsRepo.UpdateInviteStatus(ctx, invite.ID, "ACCEPTED")
 		return apperror.BadRequest("You are already a member of this workspace")
 	}
 
@@ -126,12 +126,12 @@ func (s *service) AcceptInvitation(ctx context.Context, token string, loggedInUs
 		Role:        invite.Role,
 	}
 
-	if err := s.repo.AddMember(ctx, member); err != nil {
+	if err := s.wsRepo.AddMember(ctx, member); err != nil {
 		log.Printf("Failed to add member to workspace: %v", err)
 		return apperror.InternalServer("Could not accept invitation")
 	}
 
-	if err := s.repo.UpdateInviteStatus(ctx, invite.ID, "ACCEPTED"); err != nil {
+	if err := s.wsRepo.UpdateInviteStatus(ctx, invite.ID, "ACCEPTED"); err != nil {
 		log.Printf("Failed to update invite status: %v", err)
 	}
 
@@ -139,11 +139,11 @@ func (s *service) AcceptInvitation(ctx context.Context, token string, loggedInUs
 }
 
 func (s *service) GetWorkspacesByMember(ctx context.Context, userID string) ([]domain.Workspace, error) {
-	return s.repo.GetByMemberID(ctx, userID)
+	return s.wsRepo.GetByMemberID(ctx, userID)
 }
 
 func (s *service) GetWorkspaceMembers(ctx context.Context, workspaceID string, userID string) ([]domain.WorkspaceMemberResponse, error) {
-	ws, err := s.repo.FindByID(ctx, workspaceID)
+	ws, err := s.wsRepo.FindByID(ctx, workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -152,10 +152,10 @@ func (s *service) GetWorkspaceMembers(ctx context.Context, workspaceID string, u
 	}
 
 	if ws.OwnerID == userID {
-		return s.repo.GetMembers(ctx, workspaceID)
+		return s.wsRepo.GetMembers(ctx, workspaceID)
 	}
 
-	isMember, err := s.repo.IsMember(ctx, workspaceID, userID)
+	isMember, err := s.wsRepo.IsMember(ctx, workspaceID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -163,5 +163,5 @@ func (s *service) GetWorkspaceMembers(ctx context.Context, workspaceID string, u
 		return nil, apperror.Forbidden("You do not have permission to view this workspace's members")
 	}
 
-	return s.repo.GetMembers(ctx, workspaceID)
+	return s.wsRepo.GetMembers(ctx, workspaceID)
 }

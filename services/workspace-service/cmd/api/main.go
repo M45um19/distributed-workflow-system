@@ -8,6 +8,7 @@ import (
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/config"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/app"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/middleware"
+	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/project"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/workspace"
 	pb "github.com/M45um19/distributed-workflow-system/services/workspace-service/pb/auth"
 
@@ -44,6 +45,7 @@ func main() {
 		})
 
 		workspace.RegisterRoutes(api, container.WorkspaceCtrl, container.AuthMid)
+		project.RegisterRoutes(api, container.ProjectCtrl, container.AuthMid)
 	}
 
 	fmt.Printf("Workspace API Server running on port %s\n", cfg.Port)

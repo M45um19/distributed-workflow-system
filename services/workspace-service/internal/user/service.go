@@ -7,15 +7,15 @@ import (
 )
 
 type service struct {
-	repo domain.UserRepository
+	userRepo domain.UserRepository
 }
 
-func NewService(repo domain.UserRepository) domain.UserService {
+func NewService(userRepo domain.UserRepository) domain.UserService {
 	return &service{
-		repo: repo,
+		userRepo: userRepo,
 	}
 }
 
 func (s *service) SyncUserSnapshot(ctx context.Context, user *domain.UserSnapshot) error {
-	return s.repo.UpsertUser(ctx, user)
+	return s.userRepo.UpsertUser(ctx, user)
 }

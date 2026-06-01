@@ -167,3 +167,13 @@ func (r *sqlRepository) GetMembers(ctx context.Context, workspaceID string) ([]d
 
 	return members, nil
 }
+
+func (r *sqlRepository) GetMemberRole(ctx context.Context, workspaceID, userID string) (string, error) {
+	var role string
+	query := `SELECT role FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`
+	err := r.db.GetContext(ctx, &role, query, workspaceID, userID)
+	if err != nil {
+		return "", err
+	}
+	return role, nil
+}
