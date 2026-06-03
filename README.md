@@ -82,19 +82,20 @@ The core objective of the project is to provide a seamless collaborative experie
 
 | Method | Endpoint | Description | Auth | Sample Input |
 | :--- | :--- | :--- | :--- | :--- |
-| POST | `/api/v1/workspaces` | Create workspace | Yes | `{"name": "test", "slug": "test", "description": "test"}` |
-| GET | `/api/v1/workspaces` | List workspaces (Owner) | Yes | |
-| GET | `/api/v1/workspaces` | List workspaces (Member) | Yes | |
-| POST | `/api/v1/workspaces/:id/invite` | Invite member | Yes | `{"email": "test@test.com", "role": "ADMIN"}` |
-| POST | `/api/v1/workspaces/invitations/accept` | Accept invite | Yes | `{"token": "6fa7dfcd-bfa2-4e13-bdb4-6e7fcb8ee8b5"}` |
-| GET | `/api/v1/workspaces/:id/members` | Get members | Yes | |
-| POST | `/api/v1/projects` | Create project | Yes | |
-| GET | `/api/v1/projects/:id` | Get project (cached) | Yes | |
-| POST | `/api/v1/tasks` | Create task (Temporal workflow) | Yes | |
-| GET | `/api/v1/tasks/:id` | Get task | Yes | |
-| PATCH | `/api/v1/tasks/:id` | Update task | Yes | |
-| POST | `/api/v1/tasks/:id/comments` | Add comment | Yes | |
-
+| POST | `/api/v1/workspace` | Create workspace | Yes | `{"name": "test", "slug": "test", "description": "test"}` |
+| GET | `/api/v1/workspace/owned` | List workspaces (Owner) | Yes | |
+| GET | `/api/v1/workspace/joined` | List workspaces (Member) | Yes | |
+| POST | `/api/v1/workspace/:id/invites` | Invite member | Yes | `{"email": "test@test.com", "role": "ADMIN"}` |
+| POST | `/api/v1/workspace/invites/accept` | Accept invite | Yes | `{"token": "6fa7dfcd-bfa2-4e13-bdb4-6e7fcb8ee8b5"}` |
+| GET | `/api/v1/workspace/:id/members` | Get members | Yes | |
+| POST | `/api/v1/workspace/:id/projects` | Create project | Yes | |
+| GET | `/api/v1/workspace/:id/projects` | Get project | Yes | |
+| POST | `/api/v1/workspace/projects/:id/tasks` | Create task | Yes | |
+| GET | `/api/v1/workspace/projects/:id/tasks` | Get task | Yes | |
+| PUT | `/api/v1/workspace/tasks/:id` | Update task | Yes | |
+| PATCH | `/api/v1/workspace/tasks/:id/stataus` | Update task status | Yes | |
+| POST | `/api/v1/workspace/tasks/:id/comments` | Add comment | Yes | |
+| GET | `/api/v1/workspace/tasks/:id/comments` | Fetch comments | Yes | |
 
 #### gRPC
 
