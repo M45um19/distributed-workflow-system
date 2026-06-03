@@ -5,6 +5,7 @@ import (
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/kafka"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/middleware"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/project"
+	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/task"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/temporal"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/temporal/activity"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/temporal/workflow"
@@ -21,6 +22,7 @@ import (
 type Container struct {
 	WorkspaceCtrl  *workspace.Controller
 	ProjectCtrl    *project.Controller
+	TaskCtrl       *task.Controller
 	AuthMid        *middleware.AuthMiddleware
 	KafkaWorker    *kafka.Worker
 	TemporalWorker *temporal.Worker
@@ -33,6 +35,7 @@ func NewContainer(cfg *config.Config, db *sqlx.DB, rdb *redis.Client, authGRPCCl
 
 	wsRepo := workspace.NewRepository(db)
 	projectRepo := project.NewRepository(db)
+	taskRepo := task.NewRepository(db)
 
 	tempClient := config.ConnectTemporal(cfg.TemporalHost)
 	wsSvc := workspace.NewService(wsRepo, userRepo, tempClient)
@@ -41,11 +44,15 @@ func NewContainer(cfg *config.Config, db *sqlx.DB, rdb *redis.Client, authGRPCCl
 	projectSvc := project.NewService(projectRepo, wsRepo)
 	projectCtrl := project.NewController(projectSvc)
 
+	taskSvc := task.NewService(taskRepo, wsRepo)
+	taskCtrl := task.NewController(taskSvc)
+
 	authMid := middleware.NewAuthMiddleware(cfg.JWTSecret, rdb, authGRPCClient)
 
 	container := &Container{
 		WorkspaceCtrl:  wsCtrl,
 		ProjectCtrl:    projectCtrl,
+		TaskCtrl:       taskCtrl,
 		AuthMid:        authMid,
 		TemporalClient: tempClient,
 	}
