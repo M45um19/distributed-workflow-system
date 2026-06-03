@@ -47,7 +47,7 @@ func (s *service) CreateProject(ctx context.Context, workspaceID string, input d
 		WorkspaceID: workspaceID,
 		Name:        input.Name,
 		Description: input.Description,
-		Status:      "Active",
+		Status:      "ACTIVE",
 		CreatedBy:   userID,
 	}
 

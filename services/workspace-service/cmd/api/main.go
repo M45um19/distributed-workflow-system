@@ -9,6 +9,7 @@ import (
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/app"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/middleware"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/project"
+	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/task"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/workspace"
 	pb "github.com/M45um19/distributed-workflow-system/services/workspace-service/pb/auth"
 
@@ -38,14 +39,15 @@ func main() {
 	r := gin.Default()
 	r.Use(middleware.GlobalErrorHandler(cfg.GoENV))
 
-	api := r.Group("/api/v1")
+	api := r.Group("/api/v1/workspace")
 	{
-		api.GET("/workspaces/health", func(c *gin.Context) {
+		api.GET("/health", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"status": "UP", "redis": rdb != nil})
 		})
 
 		workspace.RegisterRoutes(api, container.WorkspaceCtrl, container.AuthMid)
 		project.RegisterRoutes(api, container.ProjectCtrl, container.AuthMid)
+		task.RegisterRoutes(api, container.TaskCtrl, container.AuthMid)
 	}
 
 	fmt.Printf("Workspace API Server running on port %s\n", cfg.Port)
