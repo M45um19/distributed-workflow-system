@@ -6,15 +6,14 @@ import (
 )
 
 func RegisterRoutes(r *gin.RouterGroup, ctrl *Controller, authMid *middleware.AuthMiddleware) {
-	workspaceGroup := r.Group("/workspaces")
+	ws := r.Group("/", authMid.Protect())
 	{
-		workspaceGroup.POST("/", authMid.Protect(), ctrl.CreateWorkspace)
-		workspaceGroup.GET("/", authMid.Protect(), ctrl.ListWorkspacesByOwner)
+		ws.POST("", ctrl.CreateWorkspace)
+		ws.GET("/owned", ctrl.ListWorkspacesByOwner)
+		ws.GET("/joined", ctrl.ListWorkspacesByMember)
 
-		workspaceGroup.GET("/member", authMid.Protect(), ctrl.ListWorkspacesByMember)
-		workspaceGroup.POST("/:id/invite", authMid.Protect(), ctrl.InviteUser)
-		workspaceGroup.POST("/invitations/accept", authMid.Protect(), ctrl.AcceptInvite)
-
-		workspaceGroup.GET("/:id/members", authMid.Protect(), ctrl.GetWorkspaceMembersHandler)
+		ws.GET("/:id/members", ctrl.GetWorkspaceMembersHandler)
+		ws.POST("/:id/invites", ctrl.InviteUser)
+		ws.POST("/invites/accept", ctrl.AcceptInvite)
 	}
 }

@@ -20,6 +20,11 @@ services:
       - POSTGRES_DB=taskflow_jobs
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d taskflow_jobs"]
+      interval: 5s
+      timeout: 5s
+      retries: 5      
 
   redis-auth:
     image: redis:7-alpine
@@ -96,7 +101,8 @@ services:
       TEMPORAL_VISIBILITY_DB: temporal_visibility
       SKIP_DB_CREATE: false
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
 
   temporal-ui:
     container_name: taskflow-temporal-ui

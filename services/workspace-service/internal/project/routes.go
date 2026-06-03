@@ -6,9 +6,9 @@ import (
 )
 
 func RegisterRoutes(r *gin.RouterGroup, ctrl *Controller, authMid *middleware.AuthMiddleware) {
-	projectGroup := r.Group("/workspaces/:id/projects")
+	projectGroup := r.Group("/:id/projects", authMid.Protect())
 	{
-		projectGroup.POST("/", authMid.Protect(), ctrl.CreateProject)
-		projectGroup.GET("/", authMid.Protect(), ctrl.ListProjects)
+		projectGroup.POST("", ctrl.CreateProject)
+		projectGroup.GET("", ctrl.ListProjects)
 	}
 }
