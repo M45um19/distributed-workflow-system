@@ -1,6 +1,6 @@
-import { IUserDocument, IUserRepository } from './user.interface';
-import { User } from './user.model';
-import { IUser } from './user.validation';
+import { IUserDocument, IUserRepository } from './user.interface.js';
+import { User } from './user.model.js';
+import { IUser } from './user.validation.js';
 
 export class UserRepository implements IUserRepository {
   async exists(email: string): Promise<boolean> {

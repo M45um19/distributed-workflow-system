@@ -1,9 +1,9 @@
 import { NextFunction, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 
-import { sendResponse } from '../../utils/sendResponse';
+import { sendResponse } from '../../utils/sendResponse.js';
 
-import { IAuthService } from './auth.interface';
+import { IAuthService } from './auth.interface.js';
 
 export class AuthController {
   constructor(private authService: IAuthService) { }

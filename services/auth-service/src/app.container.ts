@@ -1,8 +1,8 @@
-import { AuthMiddleware } from "./middleware/auth.middleware";
-import { AuthController } from "./modules/auth/auth.controller";
-import { IAuthService } from "./modules/auth/auth.interface";
-import { AuthService } from "./modules/auth/auth.service";
-import { UserRepository } from "./modules/user/user.repository";
+import { AuthMiddleware } from "./middleware/auth.middleware.js";
+import { AuthController } from "./modules/auth/auth.controller.js";
+import { IAuthService } from "./modules/auth/auth.interface.js";
+import { AuthService } from "./modules/auth/auth.service.js";
+import { UserRepository } from "./modules/user/user.repository.js";
 
 export class AppContainer {
   public authController: AuthController;
