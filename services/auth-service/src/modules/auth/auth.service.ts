@@ -1,14 +1,14 @@
 import bcrypt from 'bcryptjs';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 
-import { env } from '../../config/env';
-import { kafkaConfig } from '../../config/kafka';
-import { redisService } from '../../config/redis';
-import { AppError } from '../../utils/appError';
-import { IUserRepository } from '../user/user.interface';
+import { env } from '../../config/env.js';
+import { kafkaConfig } from '../../config/kafka.js';
+import { redisService } from '../../config/redis.js';
+import { AppError } from '../../utils/appError.js';
+import { IUserRepository } from '../user/user.interface.js';
 
-import { AuthResponse, IAuthService, SessionVerification } from './auth.interface';
-import { LoginUserDTO, RegisterUserDTO } from './auth.validation';
+import { AuthResponse, IAuthService, SessionVerification } from './auth.interface.js';
+import { LoginUserDTO, RegisterUserDTO } from './auth.validation.js';
 
 interface AccessTokenPayload extends JwtPayload {
   userId: string;

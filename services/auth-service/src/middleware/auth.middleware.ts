@@ -1,7 +1,7 @@
 import { Response, NextFunction, Request } from 'express';
 
-import { IAuthService, AuthRequest, AuthUser } from '../modules/auth/auth.interface';
-import { AppError } from '../utils/appError';
+import { IAuthService, AuthRequest, AuthUser } from '../modules/auth/auth.interface.js';
+import { AppError } from '../utils/appError.js';
 
 export class AuthMiddleware {
   constructor(private authService: IAuthService) { }

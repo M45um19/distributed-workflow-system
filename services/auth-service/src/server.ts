@@ -1,11 +1,11 @@
-import createApp from "./app";
-import { AppContainer } from "./app.container";
-import { dbConfig } from "./config/db";
-import { env } from "./config/env";
-import { grpcConfig } from "./config/grpc";
-import { kafkaConfig } from "./config/kafka";
-import { redisService } from "./config/redis";
-import { registerAuthGrpcService } from "./modules/auth/auth.grpc";
+import { AppContainer } from "./app.container.js";
+import createApp from "./app.js";
+import { dbConfig } from "./config/db.js";
+import { env } from "./config/env.js";
+import { grpcConfig } from "./config/grpc.js";
+import { kafkaConfig } from "./config/kafka.js";
+import { redisService } from "./config/redis.js";
+import { registerAuthGrpcService } from "./modules/auth/auth.grpc.js";
 
 const startServer = async () => {
   try {
