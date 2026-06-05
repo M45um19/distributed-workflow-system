@@ -1,6 +1,6 @@
 import { Kafka, Producer, Partitioners, Message } from 'kafkajs';
 
-import { env } from './env';
+import { env } from './env.js';
 
 export interface IKafkaProducer {
     connect(): Promise<void>;

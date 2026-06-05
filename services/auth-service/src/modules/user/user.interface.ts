@@ -1,6 +1,6 @@
 import { Document, Types } from 'mongoose';
 
-import { IUser } from './user.validation';
+import { IUser } from './user.validation.js';
 
 export interface IUserDocument extends IUser, Document {
   _id: Types.ObjectId;

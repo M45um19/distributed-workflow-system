@@ -1,10 +1,10 @@
 import express, { Application } from "express";
 import mongoose from "mongoose";
 
-import { AppContainer } from "./app.container";
-import { globalErrorHandler } from "./middleware/error.middleware";
-import { setupAuthRoutes } from "./modules/auth/auth.routes";
-import { metricsHandler, metricsMiddleware } from "./monitoring/prometheus";
+import { AppContainer } from "./app.container.js";
+import { globalErrorHandler } from "./middleware/error.middleware.js";
+import { setupAuthRoutes } from "./modules/auth/auth.routes.js";
+import { metricsHandler, metricsMiddleware } from "./monitoring/prometheus.js";
 
 const createApp = (container: AppContainer): Application => {
   const app = express();

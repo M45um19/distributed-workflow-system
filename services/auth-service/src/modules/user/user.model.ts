@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 
-import { IUser, UserRole } from './user.validation';
+import { IUser, UserRole } from './user.validation.js';
 
 const userSchema = new mongoose.Schema<IUser>({
   full_name: {

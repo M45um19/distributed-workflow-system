@@ -1,6 +1,6 @@
 import { Request } from 'express';
 
-import { LoginUserDTO, RegisterUserDTO } from "./auth.validation";
+import { LoginUserDTO, RegisterUserDTO } from "./auth.validation.js";
 
 export interface AuthResponse {
   accessToken?: string;
