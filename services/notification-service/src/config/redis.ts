@@ -1,4 +1,4 @@
-import {Redis} from 'ioredis';
+import { Redis } from 'ioredis';
 
 import { env } from './env.js';
 
@@ -7,6 +7,7 @@ export interface IRedisService {
   get(key: string): Promise<string | null>;
   del(key: string): Promise<number>;
   ping(): Promise<string>;
+  getClient(): Redis;
 }
 
 class RedisConfig implements IRedisService {
@@ -36,10 +37,12 @@ class RedisConfig implements IRedisService {
     });
 
     this.client.on('error', (err) => {
-      console.error('Redis Connection Error:', err);
+      console.warn(`Redis Connection Error: ${String(err)}`);
     });
   }
-
+  public getClient(): Redis {
+    return this.client;
+  }
   async set(key: string, value: string | number, mode?: 'EX', duration?: number): Promise<string | null> {
     if (mode === 'EX' && duration !== undefined) {
       return (await this.client.set(key, value, 'EX', duration)) as string | null;

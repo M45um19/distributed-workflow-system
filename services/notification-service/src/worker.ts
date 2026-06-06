@@ -2,17 +2,17 @@ import { AppContainer } from './app.container.js';
 import { dbConfig } from './config/db.js';
 import { kafkaConfig } from './config/kafka.js';
 import { redisService } from './config/redis.js';
+import { socketConfig } from './config/socket.js';
 
 const startWorker = async () => {
   try {
     await dbConfig.connect();
     await redisService.ping();
-  
 
     await kafkaConfig.connect();
 
     const container = new AppContainer(true);
-    
+    socketConfig.initWorker();
     console.info('Activating Notification Event Consumer Loop...');
     await container.kafkaWorker?.start();
 
