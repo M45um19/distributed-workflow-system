@@ -12,6 +12,7 @@ import (
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/task"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/workspace"
 	pb "github.com/M45um19/distributed-workflow-system/services/workspace-service/pb/auth"
+	"github.com/M45um19/distributed-workflow-system/services/workspace-service/pkg/monitoring"
 
 	"github.com/gin-gonic/gin"
 )
@@ -38,9 +39,10 @@ func main() {
 	container := app.NewContainer(cfg, db, rdb, authGRPCClient, false)
 	r := gin.Default()
 	r.Use(middleware.GlobalErrorHandler(cfg.GoENV))
-
+	r.Use(monitoring.MetricsMiddleware())
 	api := r.Group("/api/v1/workspace")
 	{
+		api.GET("/metrics", monitoring.MetricsHandler())
 		api.GET("/health", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"status": "UP", "redis": rdb != nil})
 		})
