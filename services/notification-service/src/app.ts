@@ -3,12 +3,15 @@ import mongoose from 'mongoose';
 
 import { AppContainer } from './app.container.js';
 import { globalErrorHandler } from './middleware/error.middleware.js';
+import { setupNotificationRoutes } from './modules/notification/notification.routes.js';
 
 const createApp = (container: AppContainer): Application => {
   const app = express();
 
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
+
+  app.use("/api/v1/notification", setupNotificationRoutes(container.notificationController, container.authMiddleware));
 
 
   setupHealthRoutes(app);

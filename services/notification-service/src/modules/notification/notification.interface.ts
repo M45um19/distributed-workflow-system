@@ -12,6 +12,13 @@ export interface INotification {
 
 export interface INotificationDocument extends INotification, Document {}
 
+export interface IFetchNotificationsResponse {
+  notifications: INotificationDocument[];
+  unreadCount: number;
+}
+
 export interface INotificationRepository {
   create(data: INotification): Promise<INotification>;
+  fetchLatest(userId: string, limit?: number): Promise<IFetchNotificationsResponse>;
+  markAsRead(userId: string, notificationIds: string[]): Promise<void>;
 }
