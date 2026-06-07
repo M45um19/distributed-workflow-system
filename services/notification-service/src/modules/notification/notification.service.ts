@@ -3,7 +3,7 @@ import { socketConfig } from '../../config/socket.js';
 import { IFetchNotificationsResponse, INotification, INotificationRepository } from './notification.interface.js';
 
 export class NotificationService {
-  constructor(private readonly notificationRepository: INotificationRepository) {}
+  constructor(private readonly notificationRepository: INotificationRepository) { }
 
   public async sendNotification(data: INotification): Promise<INotification> {
     const notification = await this.notificationRepository.create(data);
