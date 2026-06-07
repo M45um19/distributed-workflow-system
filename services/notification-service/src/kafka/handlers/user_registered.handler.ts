@@ -6,6 +6,7 @@ interface IUserRegisteredEvent {
   email: string;
   full_name: string;
   role?: string;
+  avatar_url?: string
 }
 
 export class UserRegisteredHandler implements IKafkaHandler {

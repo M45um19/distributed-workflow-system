@@ -4,12 +4,13 @@ import { IUser, IUserRepository } from './user.interface.js';
 export class UserService {
   constructor(private userRepository: IUserRepository) {}
 
-  public async syncUserSnapshot(eventData: { id: string; email: string; full_name: string; role?: string }): Promise<void> {
+  public async syncUserSnapshot(eventData: { id: string; email: string; full_name: string; role?: string, avatar_url?: string }): Promise<void> {
     const userSnapshot: Partial<IUser> = {
       _id: eventData.id,
       full_name: eventData.full_name,
       email: eventData.email,
-      role: eventData.role || 'user',
+      role: eventData.role || 'USER',
+      avatar_url: eventData.avatar_url || ""
     };
 
     const result = await this.userRepository.saveSnapshot(userSnapshot);
