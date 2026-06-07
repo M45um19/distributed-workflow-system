@@ -1,7 +1,9 @@
+
 import { NotificationHandler } from './kafka/handlers/notification_handler.js';
 import { UserRegisteredHandler } from './kafka/handlers/user_registered.handler.js';
 import { KafkaWorker } from './kafka/worker.js';
 import { AuthMiddleware } from './middleware/auth.middleware.js';
+import { NotificationController } from './modules/notification/notification.controller.js';
 import { NotificationRepository } from './modules/notification/notification.repository.js';
 import { NotificationService } from './modules/notification/notification.service.js';
 import { UserRepository } from './modules/user/user.repository.js';
@@ -10,6 +12,7 @@ import { UserService } from './modules/user/user.service.js';
 export class AppContainer {
   public userService: UserService;
   public notificationService: NotificationService;
+  public notificationController: NotificationController;
   public authMiddleware: AuthMiddleware;
   public kafkaWorker?: KafkaWorker;
 
@@ -19,7 +22,10 @@ export class AppContainer {
 
     const notificationRepository = new NotificationRepository();
     this.notificationService = new NotificationService(notificationRepository);
+    
+    this.notificationController = new NotificationController(this.notificationService);
     this.authMiddleware = new AuthMiddleware();
+
     if (isWorker) {
       const kWorker = new KafkaWorker();
 
