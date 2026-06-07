@@ -1,6 +1,9 @@
+
 import { Request } from 'express';
+import { JwtPayload } from 'jsonwebtoken';
 
 import { LoginUserDTO, RegisterUserDTO } from "./auth.validation.js";
+
 
 export interface AuthResponse {
   accessToken?: string;
@@ -9,6 +12,7 @@ export interface AuthResponse {
     id: string;
     full_name: string;
     email: string;
+    avatar_url: string;
   };
 }
 
@@ -41,4 +45,9 @@ export interface AuthUser {
 }
 export interface AuthRequest extends Request {
   user?: AuthUser;
+}
+
+export interface AccessTokenPayload extends JwtPayload {
+  userId: string;
+  deviceId: string;
 }

@@ -10,6 +10,7 @@ type UserSnapshot struct {
 	FullName  string    `db:"full_name" json:"full_name"`
 	Email     string    `db:"email" json:"email"`
 	Role      string    `db:"role" json:"role" binding:"required,oneof=ADMIN USER"`
+	AvatarURL string    `db:"avatar_url" json:"avatar_url"`
 	CreatedAt time.Time `db:"created_at" json:"createdAt"`
 }
 

@@ -17,11 +17,12 @@ func NewRepository(db *sqlx.DB) domain.UserRepository {
 
 func (r *repository) UpsertUser(ctx context.Context, u *domain.UserSnapshot) error {
 	query := `
-        INSERT INTO users (id, full_name, email, role, created_at)
-        VALUES (:id, :full_name, :email, :role, :created_at)
+        INSERT INTO users (id, full_name, email, avatar_url, role, created_at)
+        VALUES (:id, :full_name, :email, :avatar_url, :role, :created_at)
         ON CONFLICT (id) DO UPDATE SET
             full_name = EXCLUDED.full_name,
             email = EXCLUDED.email,
+			avatar_url = EXCLUDED.avatar_url,
             role = EXCLUDED.role`
 
 	_, err := r.db.NamedExecContext(ctx, query, u)
@@ -30,7 +31,7 @@ func (r *repository) UpsertUser(ctx context.Context, u *domain.UserSnapshot) err
 
 func (r *repository) FindByID(ctx context.Context, id string) (*domain.UserSnapshot, error) {
 	var u domain.UserSnapshot
-	query := `SELECT id, full_name, email, role, created_at FROM users WHERE id = $1`
+	query := `SELECT id, full_name, email, avatar_url, role, created_at FROM users WHERE id = $1`
 	err := r.db.GetContext(ctx, &u, query, id)
 	if err != nil {
 		return nil, err

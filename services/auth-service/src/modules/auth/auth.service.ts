@@ -1,5 +1,7 @@
+import crypto from 'crypto';
+
 import bcrypt from 'bcryptjs';
-import jwt, { JwtPayload } from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
 
 import { env } from '../../config/env.js';
 import { kafkaConfig } from '../../config/kafka.js';
@@ -7,16 +9,19 @@ import { redisService } from '../../config/redis.js';
 import { AppError } from '../../utils/appError.js';
 import { IUserRepository } from '../user/user.interface.js';
 
-import { AuthResponse, IAuthService, SessionVerification } from './auth.interface.js';
+import { AccessTokenPayload, AuthResponse, IAuthService, SessionVerification } from './auth.interface.js';
 import { LoginUserDTO, RegisterUserDTO } from './auth.validation.js';
 
-interface AccessTokenPayload extends JwtPayload {
-  userId: string;
-  deviceId: string;
-}
+
 
 export class AuthService implements IAuthService {
   constructor(private userRepository: IUserRepository) { }
+
+  private generateGravatarUrl(email: string): string {
+    const cleanEmail = email.trim().toLowerCase();
+    const hash = crypto.createHash('md5').update(cleanEmail).digest('hex');
+    return `https://www.gravatar.com/avatar/${hash}?d=robohash&s=200`;
+  }
 
   async register(data: RegisterUserDTO, deviceMeta: { deviceId: string, ip: string, deviceName: string }): Promise<AuthResponse> {
     const { full_name, email, password } = data;
@@ -27,20 +32,21 @@ export class AuthService implements IAuthService {
 
     const salt = await bcrypt.genSalt(12);
     const hashedPassword = await bcrypt.hash(password, salt);
-
+    const generatedAvatar = this.generateGravatarUrl(email);
     const newUser = await this.userRepository.create({
       full_name,
       email,
       password_hash: hashedPassword,
       role: 'USER',
-      avatar_url: '',
+      avatar_url: generatedAvatar,
       is_active: true
     });
 
     const userResult: AuthResponse["user"] = {
       id: newUser._id.toString(),
       full_name: newUser.full_name,
-      email: newUser.email
+      email: newUser.email,
+      avatar_url: newUser.avatar_url
     };
 
     await kafkaConfig.sendMessage('user-registered', {
@@ -56,7 +62,7 @@ export class AuthService implements IAuthService {
     );
 
     const refreshToken = jwt.sign(
-      { userId: newUser._id.toString(), deviceId: deviceId},
+      { userId: newUser._id.toString(), deviceId: deviceId },
       env.JWT_REFRESH_SECRET as string,
       { expiresIn: '7d' }
     );
@@ -82,7 +88,7 @@ export class AuthService implements IAuthService {
       ttl
     );
 
-    return {accessToken, refreshToken, user: userResult};
+    return { accessToken, refreshToken, user: userResult };
   }
 
   async login(
@@ -137,7 +143,8 @@ export class AuthService implements IAuthService {
       user: {
         id: user._id.toString(),
         full_name: user.full_name,
-        email: user.email
+        email: user.email,
+        avatar_url: user.avatar_url
       }
     };
 
