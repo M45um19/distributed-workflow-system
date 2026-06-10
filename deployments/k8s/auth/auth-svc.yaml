@@ -24,6 +24,9 @@ spec:
         imagePullPolicy: Never
         ports:
         - containerPort: 5000
+          name: http
+        - containerPort: 50051
+          name: grpc
         resources:
           requests:
             memory: "128Mi"
@@ -35,22 +38,43 @@ spec:
           httpGet:
             path: /api/v1/auth/health 
             port: 5000
-          initialDelaySeconds: 5
-          periodSeconds: 10
+          initialDelaySeconds: 15
+          periodSeconds: 20
         readinessProbe:
           httpGet:
             path: /api/v1/auth/health
             port: 5000
-          initialDelaySeconds: 5
+          initialDelaySeconds: 10
           periodSeconds: 10
         env:
+        - name: NODE_ENV
+          value: "production"
         - name: PORT
           value: "5000"
+        - name: KAFKA_BROKERS
+          value: "host.docker.internal:9092"
+        - name: AUTH_PROTO_PATH
+          value: "/shared-proto/auth/auth.proto"
         - name: MONGO_URI
           valueFrom:
             secretKeyRef:
               name: auth-secrets
               key: MONGO_URI
+        - name: REDIS_URI
+          valueFrom:
+            secretKeyRef:
+              name: auth-secrets
+              key: REDIS_URI
+        - name: JWT_ACCESS_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: auth-secrets
+              key: JWT_ACCESS_SECRET
+        - name: JWT_REFRESH_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: auth-secrets
+              key: JWT_REFRESH_SECRET
 ---
 apiVersion: v1
 kind: Service
@@ -66,3 +90,7 @@ spec:
       protocol: TCP
       port: 80
       targetPort: 5000
+    - name: grpc
+      protocol: TCP
+      port: 50051
+      targetPort: 50051

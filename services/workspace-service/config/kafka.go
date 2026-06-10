@@ -19,3 +19,13 @@ func NewKafkaReader(brokers string, topic string, groupID string) *kafka.Reader 
 		StartOffset:    kafka.FirstOffset,
 	})
 }
+
+func NewKafkaWriter(brokers string, topic string) *kafka.Writer {
+	return &kafka.Writer{
+		Addr:         kafka.TCP(strings.Split(brokers, ",")...),
+		Topic:        topic,
+		Balancer:     &kafka.LeastBytes{},
+		RequiredAcks: kafka.RequireAll,
+		Async:        false,
+	}
+}

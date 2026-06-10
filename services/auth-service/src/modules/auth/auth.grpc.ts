@@ -4,14 +4,18 @@ import { fileURLToPath } from 'url';
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 
+import { env } from '../../config/env.js';
 import { grpcConfig } from '../../config/grpc.js';
 
 import { IAuthService, SessionVerification } from './auth.interface.js';
 
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PROTO_PATH = path.resolve(__dirname, '../../../../../shared-proto/auth/auth.proto');
+const PROTO_PATH = env.AUTH_PROTO_PATH && env.AUTH_PROTO_PATH.startsWith('/') 
+  ? env.AUTH_PROTO_PATH 
+  : path.resolve(__dirname, env.AUTH_PROTO_PATH || '../../../../../shared-proto/auth/auth.proto');
 const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   keepCase: true,
   longs: String,
