@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: workspace-service-monitor
+  namespace: monitoring
+  labels:
+    release: kube-stack 
+spec:
+  selector:
+    matchLabels:
+      app: workspace-service 
+  namespaceSelector:
+    matchNames:
+      - default 
+  endpoints:
+  - port: http 
+    path: /api/v1/workspace/metrics
+    interval: 15s

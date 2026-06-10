@@ -37,8 +37,9 @@ func NewContainer(cfg *config.Config, db *sqlx.DB, rdb *redis.Client, authGRPCCl
 	projectRepo := project.NewRepository(db)
 	taskRepo := task.NewRepository(db)
 
+	notiWriter := config.NewKafkaWriter(cfg.KafkaBrokers, "send-notification")
 	tempClient := config.ConnectTemporal(cfg.TemporalHost)
-	wsSvc := workspace.NewService(wsRepo, userRepo, tempClient)
+	wsSvc := workspace.NewService(wsRepo, userRepo, tempClient, notiWriter)
 	wsCtrl := workspace.NewController(wsSvc)
 
 	projectSvc := project.NewService(projectRepo, wsRepo)

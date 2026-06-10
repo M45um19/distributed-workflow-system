@@ -1,0 +1,172 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: workspace-service
+  labels:
+    app: workspace-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: workspace-service
+  template:
+    metadata:
+      labels:
+        app: workspace-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/api/v1/workspace/metrics"
+    spec:
+      containers:
+      - name: workspace-service
+        image: workspace-service:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8080
+          name: http
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /api/v1/workspace/health
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /api/v1/workspace/health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        env:
+        - name: GO_ENV
+          value: "production"
+        - name: PORT
+          value: "8080"
+        - name: DB_HOST
+          value: "host.docker.internal"
+        - name: DB_PORT
+          value: "5433"
+        - name: DB_USER
+          value: "admin"
+        - name: DB_NAME
+          value: "taskflow_jobs"
+        - name: REDIS_URI
+          value: "redis://host.docker.internal:6381"
+        - name: KAFKA_BROKERS
+          value: "host.docker.internal:9092"
+        - name: TEMPORAL_HOST
+          value: "host.docker.internal:7233"
+        - name: AUTH_SERVICE_GRPC_ADDR
+          value: "auth-service.default.svc.cluster.local:50051"
+        - name: SMTP_HOST
+          value: "smtp.gmail.com"
+        - name: SMTP_PORT
+          value: "587"
+        - name: FROM
+          value: "naim15-1793@diu.edu.bd"
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: workspace-secrets
+              key: DB_PASSWORD
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: workspace-secrets
+              key: JWT_SECRET
+        - name: PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: workspace-secrets
+              key: SMTP_PASSWORD
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: workspace-worker
+  labels:
+    app: workspace-worker
+spec:
+  replicas: 1 
+  selector:
+    matchLabels:
+      app: workspace-worker
+  template:
+    metadata:
+      labels:
+        app: workspace-worker
+    spec:
+      containers:
+      - name: workspace-worker
+        image: workspace-service:latest 
+        imagePullPolicy: Never
+        command: ["/app/workspace-worker"] 
+        env:
+        - name: GO_ENV
+          value: "production"
+        - name: PORT
+          value: "8080"
+        - name: DB_HOST
+          value: "host.docker.internal"
+        - name: DB_PORT
+          value: "5433"
+        - name: DB_USER
+          value: "admin"
+        - name: DB_NAME
+          value: "taskflow_jobs"
+        - name: REDIS_URI
+          value: "redis://host.docker.internal:6381"
+        - name: KAFKA_BROKERS
+          value: "host.docker.internal:9092"
+        - name: TEMPORAL_HOST
+          value: "host.docker.internal:7233"
+        - name: AUTH_SERVICE_GRPC_ADDR
+          value: "auth-service.default.svc.cluster.local:50051"
+        - name: SMTP_HOST
+          value: "smtp.gmail.com"
+        - name: SMTP_PORT
+          value: "587"
+        - name: FROM
+          value: ""
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: workspace-secrets
+              key: DB_PASSWORD
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: workspace-secrets
+              key: JWT_SECRET
+        - name: PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: workspace-secrets
+              key: SMTP_PASSWORD
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: workspace-service
+  labels:
+    app: workspace-service
+spec:
+  selector:
+    app: workspace-service
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 8080

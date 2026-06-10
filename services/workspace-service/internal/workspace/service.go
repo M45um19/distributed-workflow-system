@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/temporal/workflow"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/pkg/apperror"
 	"github.com/google/uuid"
+	"github.com/segmentio/kafka-go"
 	"go.temporal.io/sdk/client"
 )
 
@@ -17,13 +19,15 @@ type service struct {
 	wsRepo         domain.WorkspaceRepository
 	userRepo       domain.UserRepository
 	temporalClient client.Client
+	kafkaWriter    *kafka.Writer
 }
 
-func NewService(wsRepo domain.WorkspaceRepository, userRepo domain.UserRepository, tempClient client.Client) domain.WorkspaceService {
+func NewService(wsRepo domain.WorkspaceRepository, userRepo domain.UserRepository, tempClient client.Client, kafkaWriter *kafka.Writer) domain.WorkspaceService {
 	return &service{
 		wsRepo:         wsRepo,
 		userRepo:       userRepo,
 		temporalClient: tempClient,
+		kafkaWriter:    kafkaWriter,
 	}
 }
 
@@ -67,6 +71,30 @@ func (s *service) InviteUser(ctx context.Context, input domain.WorkspaceInviteRe
 	if err := s.wsRepo.CreateInvite(ctx, invite); err != nil {
 		log.Printf("Failed to save invitation to DB: %v", err)
 		return apperror.InternalServer("Could not process invitation")
+	}
+
+	notificationPayload := domain.NotificationEventPayload{
+		Channel: "EMAIL",
+		UserID:  input.InviterID,
+		Title:   "Workspace Invitation",
+		Message: fmt.Sprintf("You have been invited to join the workspace as a %s", input.Role),
+		Type:    "INFO",
+		Email:   input.Email,
+	}
+
+	jsonData, err := json.Marshal(notificationPayload)
+	if err != nil {
+		log.Printf("Failed to marshal kafka notification payload: %v", err)
+	} else {
+		err = s.kafkaWriter.WriteMessages(ctx, kafka.Message{
+			Key:   []byte(input.Email),
+			Value: jsonData,
+		})
+		if err != nil {
+			log.Printf("Kafka failed to send message to send-notification: %v", err)
+		} else {
+			log.Printf("Successfully produced message to send-notification for: %s", input.Email)
+		}
 	}
 
 	workflowOptions := client.StartWorkflowOptions{

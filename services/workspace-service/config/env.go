@@ -2,6 +2,8 @@ package config
 
 import (
 	"log"
+	"reflect"
+	"strings"
 
 	"github.com/spf13/viper"
 )
@@ -29,6 +31,8 @@ func LoadConfig() (config *Config, err error) {
 	viper.SetConfigFile("./.env")
 	viper.AutomaticEnv()
 
+	bindAllEnv(Config{})
+
 	err = viper.ReadInConfig()
 	if err != nil {
 		log.Printf("Warning: .env file not found, using system env")
@@ -38,4 +42,16 @@ func LoadConfig() (config *Config, err error) {
 	err = viper.Unmarshal(&c)
 	config = &c
 	return
+}
+
+func bindAllEnv(s interface{}) {
+	t := reflect.TypeOf(s)
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		tag := field.Tag.Get("mapstructure")
+		if tag != "" {
+			envKey := strings.Split(tag, ",")[0]
+			viper.BindEnv(envKey)
+		}
+	}
 }
