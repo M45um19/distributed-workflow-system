@@ -9,8 +9,10 @@ import { env } from './env.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PROTO_PATH = path.resolve(__dirname, '../../../../shared-proto/auth/auth.proto');
-const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
+const PROTO_PATH = env.AUTH_PROTO_PATH && env.AUTH_PROTO_PATH.startsWith('/') 
+  ? env.AUTH_PROTO_PATH 
+  : path.resolve(__dirname, env.AUTH_PROTO_PATH || '../../../../shared-proto/auth/auth.proto');
+  const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   keepCase: true,
   longs: String,
   enums: String,

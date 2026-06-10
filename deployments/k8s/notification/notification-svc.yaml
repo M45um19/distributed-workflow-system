@@ -1,0 +1,135 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  labels:
+    app: notification-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "5001"
+        prometheus.io/path: "/api/v1/notification/metrics"
+    spec:
+      containers:
+      - name: notification-service
+        image: notification-service:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 5001
+          name: http
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /api/v1/notification/health
+            port: 5001
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /api/v1/notification/health
+            port: 5001
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "5001"
+        - name: KAFKA_BROKERS
+          value: "host.docker.internal:9092"
+        - name: AUTH_PROTO_PATH
+          value: "/shared-proto/auth/auth.proto"
+        - name: AUTH_SERVICE_GRPC_ADDRESS
+          value: "auth-service.default.svc.cluster.local:50051"
+        - name: MONGO_URI
+          valueFrom:
+            secretKeyRef:
+              name: notification-secrets
+              key: MONGO_URI
+        - name: REDIS_URI
+          valueFrom:
+            secretKeyRef:
+              name: notification-secrets
+              key: REDIS_URI
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: notification-secrets
+              key: JWT_SECRET
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-worker
+  labels:
+    app: notification-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification-worker
+  template:
+    metadata:
+      labels:
+        app: notification-worker
+    spec:
+      containers:
+      - name: notification-worker
+        image: notification-service:latest 
+        imagePullPolicy: Never
+        command: ["node", "dist/worker.js"]
+        env:
+        - name: NODE_ENV
+          value: "development"
+        - name: KAFKA_BROKERS
+          value: "host.docker.internal:9092"
+        - name: AUTH_PROTO_PATH
+          value: "/shared-proto/auth/auth.proto"
+        - name: MONGO_URI
+          valueFrom:
+            secretKeyRef:
+              name: notification-secrets
+              key: MONGO_URI
+        - name: REDIS_URI
+          valueFrom:
+            secretKeyRef:
+              name: notification-secrets
+              key: REDIS_URI
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: notification-secrets
+              key: JWT_SECRET
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+  labels:
+    app: notification-service
+spec:
+  selector:
+    app: notification-service
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 5001
