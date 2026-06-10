@@ -63,6 +63,15 @@ type WorkspaceMember struct {
 
 //model end
 
+type NotificationEventPayload struct {
+	Channel string `json:"channel"`
+	UserID  string `json:"userId,omitempty"`
+	Title   string `json:"title,omitempty"`
+	Message string `json:"message,omitempty"`
+	Type    string `json:"type,omitempty"`
+	Email   string `json:"email,omitempty"`
+}
+
 type WorkspaceRepository interface {
 	Create(ctx context.Context, ws *Workspace) error
 	FindBySlug(ctx context.Context, slug string) (*Workspace, error)
