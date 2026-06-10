@@ -9,5 +9,6 @@ export const env = {
   JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET,
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET,
   REDIS_URI: process.env.REDIS_URI,
-  KAFKA_BROKERS: process.env.KAFKA_BROKERS
+  KAFKA_BROKERS: process.env.KAFKA_BROKERS,
+  AUTH_PROTO_PATH: process.env.AUTH_PROTO_PATH
 };

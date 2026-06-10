@@ -3,13 +3,15 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-COPY services/auth-service/package*.json ./
+COPY services/notification-service/package*.json ./
 
-RUN npm install
+RUN npm ci
 
-COPY services/auth-service/ .
+COPY services/notification-service/ .
+
 RUN npm run build
 
+RUN npm prune --production
 
 
 
@@ -27,6 +29,6 @@ COPY --from=builder /app/dist ./dist
 RUN chown -R node:node /app /shared-proto
 USER node
 
-EXPOSE 5000
+EXPOSE 5001
 
 CMD ["node", "dist/server.js"]
