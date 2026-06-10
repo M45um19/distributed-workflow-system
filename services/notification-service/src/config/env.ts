@@ -9,5 +9,6 @@ export const env = {
   REDIS_URI: process.env.REDIS_URI,
   KAFKA_BROKERS: process.env.KAFKA_BROKERS,
   AUTH_SERVICE_GRPC_ADDRESS: process.env.AUTH_SERVICE_GRPC_ADDRESS,
-  JWT_SECRET: process.env.JWT_SECRET
+  JWT_SECRET: process.env.JWT_SECRET,
+  AUTH_PROTO_PATH: process.env.AUTH_PROTO_PATH
 };

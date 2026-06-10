@@ -1,0 +1,41 @@
+# Local binaries and structures
+bin/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Docker configurations
+Dockerfile
+Dockerfile*
+docker-compose.yaml
+docker-compose.*
+
+# Kubernetes files
+k8s/
+*.yaml
+*.yml
+
+# Version control & IDEs
+.git
+.gitignore
+.github/
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Environment secrets and logs
+.env
+.env.*
+*.log
+
+# Test and coverage profiles
+*.out
+*.test
+coverage.txt
