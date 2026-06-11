@@ -9,7 +9,7 @@ export class NotificationService {
     const notification = await this.notificationRepository.create(data);
 
     const io = socketConfig.getIO();
-    io.to(data.userId).emit('notification-received', notification);
+    io.to(`user_${data.userId}`).emit('notification-received', notification);
 
     console.warn(`[NotificationService] Live notification pushed to user: ${data.userId}`);
     return notification;

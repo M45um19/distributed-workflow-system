@@ -7,17 +7,20 @@ import (
 
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/domain"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/pkg/apperror"
+	"github.com/segmentio/kafka-go"
 )
 
 type service struct {
-	taskRepo domain.TaskRepository
-	wsRepo   domain.WorkspaceRepository
+	taskRepo                domain.TaskRepository
+	wsRepo                  domain.WorkspaceRepository
+	notificationkafkaWriter *kafka.Writer
 }
 
-func NewService(taskRepo domain.TaskRepository, wsRepo domain.WorkspaceRepository) domain.TaskService {
+func NewService(taskRepo domain.TaskRepository, wsRepo domain.WorkspaceRepository, notificationkafkaWriter *kafka.Writer) domain.TaskService {
 	return &service{
-		taskRepo: taskRepo,
-		wsRepo:   wsRepo,
+		taskRepo:                taskRepo,
+		wsRepo:                  wsRepo,
+		notificationkafkaWriter: notificationkafkaWriter,
 	}
 }
 
@@ -81,6 +84,7 @@ func (s *service) CreateTask(ctx context.Context, projectID string, input domain
 	if err := s.taskRepo.Create(ctx, t); err != nil {
 		return nil, err
 	}
+
 	return t, nil
 }
 
@@ -137,7 +141,7 @@ func (s *service) UpdateTaskStatus(ctx context.Context, taskID string, status st
 	}
 
 	// Check if user is the assigned member
-	if t.AssigneeID == nil || *t.AssigneeID != userID {
+	if t.AssigneeID == "" || t.AssigneeID != userID {
 		return apperror.Forbidden("Only the assigned member can change this task status")
 	}
 
