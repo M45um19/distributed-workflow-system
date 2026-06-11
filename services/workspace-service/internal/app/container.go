@@ -45,7 +45,7 @@ func NewContainer(cfg *config.Config, db *sqlx.DB, rdb *redis.Client, authGRPCCl
 	projectSvc := project.NewService(projectRepo, wsRepo)
 	projectCtrl := project.NewController(projectSvc)
 
-	taskSvc := task.NewService(taskRepo, wsRepo)
+	taskSvc := task.NewService(taskRepo, wsRepo, notiWriter)
 	taskCtrl := task.NewController(taskSvc)
 
 	authMid := middleware.NewAuthMiddleware(cfg.JWTSecret, rdb, authGRPCClient)

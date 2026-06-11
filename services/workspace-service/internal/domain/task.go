@@ -6,19 +6,19 @@ import (
 )
 
 type TaskCreateInput struct {
-	Title       string     `json:"title" binding:"required,min=3,max=100"`
-	Description string     `json:"description" binding:"max=1000"`
-	Priority    string     `json:"priority" binding:"required,oneof=LOW MEDIUM HIGH URGENT"`
-	AssigneeID  *string    `json:"assignee_id"`
-	Deadline    *time.Time `json:"deadline"`
+	Title       string    `json:"title" binding:"required,min=3,max=100"`
+	Description string    `json:"description" binding:"max=1000"`
+	Priority    string    `json:"priority" binding:"required,oneof=LOW MEDIUM HIGH URGENT"`
+	AssigneeID  string    `json:"assignee_id"`
+	Deadline    time.Time `json:"deadline"`
 }
 
 type TaskUpdateInput struct {
-	Title       string     `json:"title" binding:"required,min=3,max=100"`
-	Description string     `json:"description" binding:"max=1000"`
-	Priority    string     `json:"priority" binding:"required,oneof=LOW MEDIUM HIGH URGENT"`
-	AssigneeID  *string    `json:"assignee_id"`
-	Deadline    *time.Time `json:"deadline"`
+	Title       string    `json:"title" binding:"required,min=3,max=100"`
+	Description string    `json:"description" binding:"max=1000"`
+	Priority    string    `json:"priority" binding:"required,oneof=LOW MEDIUM HIGH URGENT"`
+	AssigneeID  string    `json:"assignee_id"`
+	Deadline    time.Time `json:"deadline"`
 }
 
 type TaskStatusUpdateInput struct {
@@ -30,15 +30,15 @@ type CommentCreateInput struct {
 }
 
 type Task struct {
-	ID          string     `db:"id" json:"id"`
-	ProjectID   string     `db:"project_id" json:"project_id"`
-	Title       string     `db:"title" json:"title"`
-	Description string     `db:"description" json:"description"`
-	Status      string     `db:"status" json:"status"`
-	Priority    string     `db:"priority" json:"priority"`
-	AssigneeID  *string    `db:"assignee_id" json:"assignee_id"`
-	Deadline    *time.Time `db:"deadline" json:"deadline"`
-	CreatedAt   time.Time  `db:"created_at" json:"created_at"`
+	ID          string    `db:"id" json:"id"`
+	ProjectID   string    `db:"project_id" json:"project_id"`
+	Title       string    `db:"title" json:"title"`
+	Description string    `db:"description" json:"description"`
+	Status      string    `db:"status" json:"status"`
+	Priority    string    `db:"priority" json:"priority"`
+	AssigneeID  string    `db:"assignee_id" json:"assignee_id"`
+	Deadline    time.Time `db:"deadline" json:"deadline"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 }
 
 type TaskComment struct {

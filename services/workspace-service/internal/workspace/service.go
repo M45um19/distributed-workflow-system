@@ -16,18 +16,18 @@ import (
 )
 
 type service struct {
-	wsRepo         domain.WorkspaceRepository
-	userRepo       domain.UserRepository
-	temporalClient client.Client
-	kafkaWriter    *kafka.Writer
+	wsRepo                  domain.WorkspaceRepository
+	userRepo                domain.UserRepository
+	temporalClient          client.Client
+	notificationkafkaWriter *kafka.Writer
 }
 
-func NewService(wsRepo domain.WorkspaceRepository, userRepo domain.UserRepository, tempClient client.Client, kafkaWriter *kafka.Writer) domain.WorkspaceService {
+func NewService(wsRepo domain.WorkspaceRepository, userRepo domain.UserRepository, tempClient client.Client, notificationkafkaWriter *kafka.Writer) domain.WorkspaceService {
 	return &service{
-		wsRepo:         wsRepo,
-		userRepo:       userRepo,
-		temporalClient: tempClient,
-		kafkaWriter:    kafkaWriter,
+		wsRepo:                  wsRepo,
+		userRepo:                userRepo,
+		temporalClient:          tempClient,
+		notificationkafkaWriter: notificationkafkaWriter,
 	}
 }
 
@@ -74,19 +74,18 @@ func (s *service) InviteUser(ctx context.Context, input domain.WorkspaceInviteRe
 	}
 
 	notificationPayload := domain.NotificationEventPayload{
-		Channel: "EMAIL",
+		Channel: "IN_APP",
 		UserID:  input.InviterID,
 		Title:   "Workspace Invitation",
 		Message: fmt.Sprintf("You have been invited to join the workspace as a %s", input.Role),
 		Type:    "INFO",
-		Email:   input.Email,
 	}
 
 	jsonData, err := json.Marshal(notificationPayload)
 	if err != nil {
 		log.Printf("Failed to marshal kafka notification payload: %v", err)
 	} else {
-		err = s.kafkaWriter.WriteMessages(ctx, kafka.Message{
+		err = s.notificationkafkaWriter.WriteMessages(ctx, kafka.Message{
 			Key:   []byte(input.Email),
 			Value: jsonData,
 		})
