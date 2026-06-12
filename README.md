@@ -82,20 +82,20 @@ The core objective of the project is to provide a seamless collaborative experie
 
 | Method | Endpoint | Description | Auth | Sample Input |
 | :--- | :--- | :--- | :--- | :--- |
-| POST | `/api/v1/workspace` | Create workspace | Yes | `{"name": "test", "slug": "test", "description": "test"}` |
-| GET | `/api/v1/workspace/owned` | List workspaces (Owner) | Yes | |
-| GET | `/api/v1/workspace/joined` | List workspaces (Member) | Yes | |
-| POST | `/api/v1/workspace/:id/invites` | Invite member | Yes | `{"email": "test@test.com", "role": "ADMIN"}` |
-| POST | `/api/v1/workspace/invites/accept` | Accept invite | Yes | `{"token": "6fa7dfcd-bfa2-4e13-bdb4-6e7fcb8ee8b5"}` |
-| GET | `/api/v1/workspace/:id/members` | Get members | Yes | |
-| POST | `/api/v1/workspace/:id/projects` | Create project | Yes | |
-| GET | `/api/v1/workspace/:id/projects` | Get project | Yes | |
-| POST | `/api/v1/workspace/projects/:id/tasks` | Create task | Yes | |
-| GET | `/api/v1/workspace/projects/:id/tasks` | Get task | Yes | |
-| PUT | `/api/v1/workspace/tasks/:id` | Update task | Yes | |
-| PATCH | `/api/v1/workspace/tasks/:id/stataus` | Update task status | Yes | |
-| POST | `/api/v1/workspace/tasks/:id/comments` | Add comment | Yes | |
-| GET | `/api/v1/workspace/tasks/:id/comments` | Fetch comments | Yes | |
+| POST | `/api/v1/workspace` | Create workspace | Yes | `{"name":"test","slug":"test","description":"test"}` |
+| GET | `/api/v1/workspace/owned` | List workspaces (Owner) | Yes | N/A |
+| GET | `/api/v1/workspace/joined` | List workspaces (Member) | Yes | N/A |
+| POST | `/api/v1/workspace/:id/invites` | Invite member | Yes | `{"email":"test@test.com","role":"ADMIN"}` |
+| POST | `/api/v1/workspace/invites/accept` | Accept invite | Yes | `{"token":"6fa7dfcd-bfa2-4e13-bdb4-6e7fcb8ee8b5"}` |
+| GET | `/api/v1/workspace/:id/members` | Get members | Yes | N/A |
+| POST | `/api/v1/workspace/:id/projects` | Create project | Yes | `{"name":"E-Commerce Microservices Backend","description":"This project handles the core ordering and payment workflow systems."}` |
+| GET | `/api/v1/workspace/:id/projects` | Get project | Yes | N/A |
+| POST | `/api/v1/workspace/projects/:id/tasks` | Create task | Yes | `{"title":"Implement Kafka Event Consumer","description":"Create a robust worker to consume user-registration events from the message queue.","priority":"HIGH","assignee_id":"6a107afad2ac1e59aba88b6f","deadline":"2026-06-15T18:30:00Z"}` |
+| GET | `/api/v1/workspace/projects/:id/tasks` | Get task | Yes | N/A |
+| PUT | `/api/v1/workspace/tasks/:id` | Update task | Yes | `{"title":"Implement Kafka Event Consumer 2","description":"Create a robust worker to consume user-registration events from the message queue. 2","priority":"HIGH","assignee_id":"6a107afad2ac1e59aba88b6f","deadline":"2026-06-15T18:30:00Z"}` |
+| PATCH | `/api/v1/workspace/tasks/:id/status` | Update task status | Yes | `{"status":"DONE"}` |
+| POST | `/api/v1/workspace/tasks/:id/comments` | Add comment | Yes | `{"content":"DONE"}` |
+| GET | `/api/v1/workspace/tasks/:id/comments` | Fetch comments | Yes | N/A |
 
 #### gRPC
 
@@ -110,11 +110,11 @@ The core objective of the project is to provide a seamless collaborative experie
 
 #### API
 
-| Method | Endpoint | Description | Auth |
-|-------|---------|------------|------|
-| GET | /api/v1/notifications | Get notifications | Yes |
-| PATCH | /api/v1/notifications/:id/read | Mark as read | Yes |
-| GET | /api/v1/notifications/unread-count | Unread count | Yes |
+| Method | Endpoint | Description | Auth | Sample Input |
+| :--- | :--- | :--- | :--- | :--- |
+| GET | `/api/v1/notifications` | Get notifications | Yes | N/A |
+| PATCH | `/api/v1/notifications/:id/read` | Mark as read | Yes | `{"notificationIds":["6a245a7d7441e2849b9e9e6b"]}` |
+| GET | `/api/v1/notifications/unread-count` | Unread count | Yes | N/A |
 
 #### Socket Events
 
@@ -187,14 +187,70 @@ The core objective of the project is to provide a seamless collaborative experie
 
 ```bash
 taskflow-backend/
-├── shared-proto/
-├── services/
-│   ├── auth-service/
-│   ├── task-service/
-│   └── notification-service/
-├── deployments/
-│   ├── docker-compose.yml
-│   ├── k8s/
-│   └── monitoring/
+├── shared-proto/                  # Shared gRPC contracts
+│   └── auth/
+│       └── auth.proto
+│
+├── deployments/                   # Infrastructure & deployment configs
+│   ├── docker-compose.yaml
+│   └── k8s/
+│       ├── auth/
+│       ├── workspace/
+│       └── notification/
+│
 ├── scripts/
+│   └── gen-proto.sh               # Generate gRPC code
+│
+├── services/
+│   │
+│   ├── auth-service/              # Authentication & session management
+│   │   ├── src/
+│   │   │   ├── config/
+│   │   │   ├── middleware/
+│   │   │   ├── modules/
+│   │   │   │   ├── auth/
+│   │   │   │   └── user/
+│   │   │   ├── monitoring/
+│   │   │   ├── utils/
+│   │   │   ├── app.container.ts
+│   │   │   ├── app.ts
+│   │   │   └── server.ts
+│   │   └── Dockerfile
+│   │
+│   ├── workspace-service/         # Workspace, Project & Task management
+│   │   ├── cmd/
+│   │   │   ├── api/
+│   │   │   └── worker/
+│   │   ├── config/
+│   │   ├── internal/
+│   │   │   ├── app/
+│   │   │   ├── domain/
+│   │   │   ├── middleware/
+│   │   │   ├── workspace/
+│   │   │   ├── project/
+│   │   │   ├── task/
+│   │   │   ├── user/
+│   │   │   ├── kafka/
+│   │   │   └── temporal/
+│   │   ├── migrations/
+│   │   └── pkg/
+│   │
+│   └── notification-service/      # Notifications & real-time delivery
+│       ├── src/
+│       │   ├── config/
+│       │   ├── middleware/
+│       │   ├── kafka/
+│       │   ├── modules/
+│       │   │   ├── notification/
+│       │   │   └── user/
+│       │   ├── monitoring/
+│       │   ├── utils/
+│       │   ├── app.container.ts
+│       │   ├── app.ts
+│       │   └── server.ts
+│       │   └── worker.ts
+│       └── Dockerfile
+│
+├── .gitignore
+├── LICENSE
 └── README.md
