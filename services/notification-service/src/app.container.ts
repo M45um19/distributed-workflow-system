@@ -1,5 +1,6 @@
 
 import { NotificationHandler } from './kafka/handlers/notification_handler.js';
+import { UserLogoutHandler } from './kafka/handlers/user_logout.handler.js';
 import { UserRegisteredHandler } from './kafka/handlers/user_registered.handler.js';
 import { KafkaWorker } from './kafka/worker.js';
 import { AuthMiddleware } from './middleware/auth.middleware.js';
@@ -31,6 +32,9 @@ export class AppContainer {
 
       const userRegisteredHandler = new UserRegisteredHandler(this.userService);
       kWorker.addTopicHandler('user-registered', userRegisteredHandler);
+
+      const userLogoutHandler = new UserLogoutHandler();
+      kWorker.addTopicHandler('user-logout', userLogoutHandler);
 
       const notificationHandler = new NotificationHandler(this.notificationService);
       kWorker.addTopicHandler('send-notification', notificationHandler);

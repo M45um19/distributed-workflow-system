@@ -12,7 +12,7 @@ const createApp = (container: AppContainer): Application => {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
   app.use(metricsMiddleware);
-  app.use("/api/v1/auth", setupAuthRoutes(container.authController));
+  app.use("/api/v1/auth", setupAuthRoutes(container.authController, container.authMiddleware));
 
   setupHealthRoutes(app);
 

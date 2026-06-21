@@ -61,9 +61,12 @@ func NewContainer(cfg *config.Config, db *sqlx.DB, rdb *redis.Client, authGRPCCl
 	if isWorker {
 		emailClient := email.NewGmailClient(cfg.SmtpHost, cfg.SmtpPort, cfg.SmtpFrom, cfg.SmtpPassword)
 		userRegHandler := kafka.NewUserRegisteredHandler(userSvc)
-		regReader := config.NewKafkaReader(cfg.KafkaBrokers, "user-registered", "workspace-registration-group")
+		userLogoutHandler := kafka.NewUserLogoutHandler(rdb)
+		regReader := config.NewKafkaReader(cfg.KafkaBrokers, "user-registered")
+		logoutReader := config.NewKafkaReader(cfg.KafkaBrokers, "user-logout")
 		kWorker := kafka.NewWorker()
 		kWorker.AddTopicHandler(regReader, userRegHandler)
+		kWorker.AddTopicHandler(logoutReader, userLogoutHandler)
 		container.KafkaWorker = kWorker
 
 		tempWorker := temporal.NewWorker(tempClient, "workspace-task-queue")
