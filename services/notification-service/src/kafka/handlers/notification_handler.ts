@@ -4,22 +4,25 @@ import { IKafkaHandler } from '../worker.js';
 
 interface INotificationEventPayload {
   channel: 'IN_APP' | 'EMAIL' | 'BOTH';
-  
+
   userId?: string;
   title?: string;
   message?: string;
   type?: 'INFO' | 'SUCCESS' | 'WARN' | 'ERROR';
-  
+
   email?: string;
   emailSubject?: string;
   emailBody?: string;
 }
 
 export class NotificationHandler implements IKafkaHandler {
-  constructor(private readonly notificationService: NotificationService) {}
+  constructor(private readonly notificationService: NotificationService) { }
 
   public async handle(messageValue: string | null): Promise<void> {
-    if (!messageValue) return;
+    if (!messageValue) {
+      console.warn('[NotificationHandler] Received null or empty message.');
+      return;
+    }
 
     try {
       const rawData = JSON.parse(messageValue);
@@ -29,7 +32,8 @@ export class NotificationHandler implements IKafkaHandler {
 
       if (payload.channel === 'IN_APP' || payload.channel === 'BOTH') {
         if (!payload.userId || !payload.title || !payload.message) {
-          throw new Error('Missing required fields for IN_APP notification (userId, title, message).');
+          console.error(`[NotificationHandler] Validation Failed for IN_APP. Payload: ${messageValue}`);
+          return;
         }
 
         const notificationData: INotification = {
@@ -45,16 +49,19 @@ export class NotificationHandler implements IKafkaHandler {
 
       if (payload.channel === 'EMAIL' || payload.channel === 'BOTH') {
         if (!payload.email || !payload.emailBody) {
-          throw new Error('Missing required fields for EMAIL notification (email, emailBody).');
+          console.error(`[NotificationHandler] Validation Failed for EMAIL. Payload: ${messageValue}`);
+          return;
         }
 
-        console.warn(`Email channel detected for: ${payload.email}. Triggering email service next...`);
-        
+        console.info(`Email channel detected for: ${payload.email}. Triggering email service next...`);
+
       }
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown Kafka Notification Error';
-      throw new Error(`[NotificationHandler] Error: ${errorMessage}`);
+
+      console.error(`[Critical][NotificationHandler] Failed to process event. Error: ${errorMessage}`);
+      console.error(`[NotificationHandler] Faulty Payload: ${messageValue}`);
     }
   }
 }

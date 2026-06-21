@@ -9,7 +9,7 @@ import { redisService } from '../../config/redis.js';
 import { AppError } from '../../utils/appError.js';
 import { IUserRepository } from '../user/user.interface.js';
 
-import { AccessTokenPayload, AuthResponse, IAuthService, SessionVerification } from './auth.interface.js';
+import { AccessTokenPayload, AuthResponse, IAuthService, logOutUserInput, SessionVerification } from './auth.interface.js';
 import { LoginUserDTO, RegisterUserDTO } from './auth.validation.js';
 
 
@@ -176,5 +176,23 @@ export class AuthService implements IAuthService {
     } catch {
       return { isValid: false };
     }
+  }
+
+  async logout(data: logOutUserInput): Promise<void> {
+    const { userId, deviceId } = data;
+
+    const sessionData = await redisService.get(`session:${userId}:${deviceId}`);
+    if (!sessionData) {
+      throw new AppError("User session not found", 400)
+    }
+
+    await redisService.del(`session:${userId}:${deviceId}`);
+
+    await kafkaConfig.sendMessage('user-logout', {
+      userId,
+      deviceId
+    });
+
+    return
   }
 }
