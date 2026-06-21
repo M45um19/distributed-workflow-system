@@ -30,9 +30,15 @@ export interface DeviceMeta {
   ip: string;
   deviceName: string;
 }
+
+export interface logOutUserInput{
+  userId: string;
+  deviceId: string;
+}
 export interface IAuthService {
   register(data: RegisterUserDTO, deviceMeta: DeviceMeta): Promise<AuthResponse>;
   login(data: LoginUserDTO, deviceMeta: DeviceMeta): Promise<AuthResponse>; verifySession(token: string): Promise<SessionVerification>;
+  logout(data: logOutUserInput): Promise<void>
 }
 
 export interface AuthUser {
@@ -44,7 +50,7 @@ export interface AuthUser {
   deviceName?: string; 
 }
 export interface AuthRequest extends Request {
-  user?: AuthUser;
+  user?: AccessTokenPayload;
 }
 
 export interface AccessTokenPayload extends JwtPayload {

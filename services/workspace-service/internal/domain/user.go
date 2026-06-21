@@ -14,6 +14,11 @@ type UserSnapshot struct {
 	CreatedAt time.Time `db:"created_at" json:"createdAt"`
 }
 
+type UserLogoutPayload struct {
+	UserID   string `db:"userId" json:"userId"`
+	DeviceID string `db:"deviceId" json:"deviceId"`
+}
+
 type UserRepository interface {
 	UpsertUser(ctx context.Context, u *UserSnapshot) error
 	FindByID(ctx context.Context, id string) (*UserSnapshot, error)

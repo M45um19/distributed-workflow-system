@@ -40,6 +40,7 @@ class SocketConfig implements ISocketConfig {
 
     public init(httpServer: HttpServer): Server {
         this.io = new Server(httpServer, {
+            path: "/api/v1/notification/socket.io",
             cors: {
                 origin: '*',
                 methods: ['GET', 'POST'],

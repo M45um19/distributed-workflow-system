@@ -20,7 +20,8 @@ export class UserRegisteredHandler implements IKafkaHandler {
       
       await this.userService.syncUserSnapshot(payload);
     } catch (error) {
-      throw new Error(`[UserRegisteredHandler] Error: ${(error as Error).message}`);
+      console.error(`[UserRegisteredHandler] Failed to process message. Error: ${(error as Error).message}`);
+      console.error(`[UserRegisteredHandler] Faulty Payload: ${messageValue}`);
     }
   }
 }
