@@ -22,13 +22,21 @@ const startWorker = async () => {
   }
 };
 
-const shutdown = async () => {
-  console.info('Gracefully stopping Notification Consumer Worker...');
-  await kafkaConfig.disconnect();
-  process.exit(0);
+const shutdown = async (signal: string) => {
+    console.info(`Received ${signal}. Shutting down worker...`);
+
+    try { await kafkaConfig.disconnect(); } catch (e) { console.error(e); }
+
+    try { await socketConfig.shutdown(); } catch (e) { console.error(e); }
+
+    try { await dbConfig.disconnect(); } catch (e) { console.error(e); }
+
+    try { await redisService.quit(); } catch (e) { console.error(e); }
+
+    process.exit(0);
 };
 
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 startWorker();

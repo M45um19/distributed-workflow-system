@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/config"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/app"
@@ -22,7 +21,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer db.Close()
 
 	rdb := config.ConnectRedis(cfg.RedisURI)
 
@@ -34,12 +32,24 @@ func main() {
 	log.Println("Workspace Background Worker is running...")
 
 	go container.KafkaWorker.Start(ctx)
-	// Temporal Worker Start
 	go container.TemporalWorker.Start(ctx)
 
 	<-ctx.Done()
 	log.Println("Shutting down workers gracefully...")
 
-	time.Sleep(time.Second * 2)
-	log.Println("All workers stopped.")
+	container.KafkaWorker.Stop()
+	log.Println("Kafka Worker components stopped.")
+
+	if container.TemporalClient != nil {
+		container.TemporalClient.Close()
+		log.Println("Temporal Client closed.")
+	}
+
+	if rdb != nil {
+		rdb.Close()
+		log.Println("Redis client closed.")
+	}
+
+	db.Close()
+	log.Println("PostgreSQL connection closed safely. Goodbye!")
 }
