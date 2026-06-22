@@ -27,7 +27,15 @@ func (tw *Worker) Register(registryFn func(temporalWorker.Worker)) {
 
 func (tw *Worker) Start(ctx context.Context) {
 	log.Println("Temporal Background Worker is starting...")
+
+	go func() {
+		<-ctx.Done()
+		log.Println("Context cancelled. Stopping Temporal worker workflow listeners...")
+		tw.worker.Stop()
+	}()
+
 	if err := tw.worker.Run(temporalWorker.InterruptCh()); err != nil {
 		log.Printf("Temporal worker error: %v", err)
 	}
+	log.Println("Temporal Worker stopped gracefully.")
 }

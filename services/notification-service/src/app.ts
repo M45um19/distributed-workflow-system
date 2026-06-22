@@ -2,6 +2,7 @@ import express, { Application } from 'express';
 import mongoose from 'mongoose';
 
 import { AppContainer } from './app.container.js';
+import { redisService } from './config/redis.js';
 import { globalErrorHandler } from './middleware/error.middleware.js';
 import { setupNotificationRoutes } from './modules/notification/notification.routes.js';
 import { metricsHandler, metricsMiddleware } from './monitoring/prometheus.js';
@@ -24,21 +25,38 @@ const createApp = (container: AppContainer): Application => {
 
 const setupHealthRoutes = (app: Application) => {
   app.get("/api/v1/notification/metrics", metricsHandler);
-  app.get('/api/v1/notification/health', (_req, res) => {
+  
+  // Liveness Probe
+  app.get('/api/v1/notification/live', (_req, res) => {
+    res.status(200).json({ status: 'ALIVE' });
+  });
+
+  // Readiness Probe
+  app.get('/api/v1/notification/health', async (_req, res) => {
     const isDatabaseConnected = mongoose.connection.readyState === 1;
 
-    if (isDatabaseConnected) {
+    let isRedisConnected = false;
+    try {
+      const pong = await redisService.ping();
+      if (pong === 'PONG') isRedisConnected = true;
+    } catch {
+      isRedisConnected = false;
+    }
+
+    if (isDatabaseConnected && isRedisConnected) {
       return res.status(200).json({
         status: 'UP',
         service: 'notification-service',
         database: 'connected',
+        redis: 'connected',
       });
     }
 
     return res.status(503).json({
       status: 'DOWN',
       service: 'notification-service',
-      database: 'disconnected',
+      database: isDatabaseConnected ? 'connected' : 'disconnected',
+      redis: isRedisConnected ? 'connected' : 'disconnected',
     });
   });
 };
