@@ -8,7 +8,22 @@ interface MongoCastError extends Error {
   value: string;
 }
 
-const sendErrorDev = (err: AppError, res: Response) => {
+const sendErrorDev = (err: AppError, req: Request, res: Response) => {
+  console.error(
+    JSON.stringify({
+      level: "error",
+      timestamp: new Date().toISOString(),
+      service: "auth-service",
+      environment: "development",
+      message: err.message,
+      method: req.method,
+      path: req.originalUrl,
+      status_code: err.statusCode || 500,
+      stack: err.stack,
+      error_details: err,
+    })
+  );
+
   res.status(err.statusCode || 500).json({
     success: false,
     message: err.message,
@@ -17,14 +32,43 @@ const sendErrorDev = (err: AppError, res: Response) => {
   });
 };
 
-const sendErrorProd = (err: AppError, res: Response) => {
+const sendErrorProd = (err: AppError, req: Request, res: Response) => {
+  const statusCode = err.statusCode || 500;
+
   if (err.isOperational) {
-    res.status(err.statusCode || 500).json({
+    console.warn(
+      JSON.stringify({
+        level: "warn",
+        timestamp: new Date().toISOString(),
+        service: "auth-service",
+        environment: "production",
+        message: err.message,
+        method: req.method,
+        path: req.originalUrl,
+        status_code: statusCode,
+      })
+    );
+
+    res.status(statusCode).json({
       success: false,
       message: err.message,
     });
-  } else {
-    console.error("ERROR : ", err);
+  } 
+  else {
+    console.error(
+      JSON.stringify({
+        level: "error",
+        timestamp: new Date().toISOString(),
+        service: "auth-service",
+        environment: "production",
+        message: err.message || "Something went very wrong!",
+        method: req.method,
+        path: req.originalUrl,
+        status_code: 500,
+        stack: err.stack,
+      })
+    );
+
     res.status(500).json({
       success: false,
       message: "Something went very wrong!",
@@ -34,7 +78,7 @@ const sendErrorProd = (err: AppError, res: Response) => {
 
 export const globalErrorHandler = (
   err: Error | AppError,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction
 ) => {
@@ -44,9 +88,8 @@ export const globalErrorHandler = (
   }
 
   if (env.NODE_ENV === "development") {
-
     const devError = err instanceof AppError ? err : new AppError(err.message, statusCode);
-    sendErrorDev(devError, res);
+    sendErrorDev(devError, req, res);
   } else {
     let error: AppError;
 
@@ -61,10 +104,16 @@ export const globalErrorHandler = (
       error = new AppError("Could not connect to the event broker", 503);
     } else if (err instanceof AppError) {
       error = err;
-    } else {
+    } 
+    else {
       error = new AppError(err.message, 500);
+      error.isOperational = false;
     }
 
-    sendErrorProd(error, res);
+    if (err.stack && !error.stack) {
+      error.stack = err.stack;
+    }
+
+    sendErrorProd(error, req, res);
   }
 };

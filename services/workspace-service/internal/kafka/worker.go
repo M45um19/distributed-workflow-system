@@ -2,6 +2,8 @@ package kafka
 
 import (
 	"context"
+	"errors"
+	"io"
 	"log"
 	"sync"
 
@@ -15,6 +17,7 @@ type KafkaEventHandler interface {
 type Worker struct {
 	readers  []*kafka.Reader
 	handlers map[string]KafkaEventHandler
+	wg       sync.WaitGroup
 }
 
 func NewWorker() *Worker {
@@ -29,34 +32,41 @@ func (w *Worker) AddTopicHandler(reader *kafka.Reader, handler KafkaEventHandler
 }
 
 func (w *Worker) Start(ctx context.Context) {
-	var wg sync.WaitGroup
-
 	for _, r := range w.readers {
-		wg.Add(1)
+		w.wg.Add(1)
 		go func(reader *kafka.Reader) {
-			defer wg.Done()
+			defer w.wg.Done()
 			topic := reader.Config().Topic
 			log.Printf("Kafka Background Worker started for topic: %s", topic)
 
 			for {
-				select {
-				case <-ctx.Done():
-					log.Printf("Stopping Kafka worker for topic: %s", topic)
-					reader.Close()
-					return
-				default:
-					msg, err := reader.ReadMessage(ctx)
-					if err != nil {
-						log.Printf("Kafka Read Error (%s): %v", topic, err)
+				msg, err := reader.ReadMessage(ctx)
+				if err != nil {
+					if errors.Is(err, context.Canceled) || errors.Is(err, io.ErrClosedPipe) {
+						log.Printf("Kafka worker loop stopped for topic: %s", topic)
 						return
 					}
-					if handler, ok := w.handlers[msg.Topic]; ok {
-						handler.Handle(ctx, msg)
-					}
+					log.Printf("Kafka Read Error (%s): %v", topic, err)
+					return
+				}
+
+				if handler, ok := w.handlers[msg.Topic]; ok {
+
+					handler.Handle(context.Background(), msg)
 				}
 			}
 		}(r)
 	}
 
-	wg.Wait()
+	w.wg.Wait()
+}
+
+func (w *Worker) Stop() {
+	log.Println("Closing all Kafka readers...")
+	for _, r := range w.readers {
+		if err := r.Close(); err != nil {
+			log.Printf("Error closing kafka reader: %v", err)
+		}
+	}
+	w.wg.Wait()
 }

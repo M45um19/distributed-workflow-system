@@ -31,14 +31,30 @@ class GrpcConfig implements IGrpcConfig {
     );
   }
 
-  public async stop(): Promise<void> {
-    return new Promise((resolve) => {
-      this.server.tryShutdown(() => {
-        console.info('gRPC Server gracefully shut down');
+public async stop(): Promise<void> {
+  return new Promise((resolve) => {
+    let isResolved = false;
+
+  
+    const forceKillTimer = setTimeout(() => {
+      if (!isResolved) {
+        console.warn('gRPC shutdown timed out. Forcing stop...');
+        this.server.forceShutdown();
+        isResolved = true;
         resolve();
-      });
+      }
+    }, 2000);
+
+    this.server.tryShutdown(() => {
+      if (!isResolved) {
+        clearTimeout(forceKillTimer);
+        console.info('gRPC Server gracefully shut down');
+        isResolved = true;
+        resolve();
+      }
     });
-  }
+  });
+}
 }
 
 export const grpcConfig = new GrpcConfig();

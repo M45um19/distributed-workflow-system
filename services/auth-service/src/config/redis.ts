@@ -60,7 +60,7 @@ class RedisConfig implements IRedisService {
   }
 
   async quit(): Promise<void> {
-    await this.client.quit();
+    await this.client.disconnect();
   }
 }
 

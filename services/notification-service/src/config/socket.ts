@@ -149,6 +149,25 @@ class SocketConfig implements ISocketConfig {
             });
         });
     }
+public async shutdown(): Promise<void> {
+    if (!this.io) return;
+
+    console.info("[SocketConfig] Disconnecting all sockets...");
+
+    this.io.disconnectSockets(true);
+
+    if ((this.io).engine) {
+        await new Promise<void>((resolve) => {
+            this.io?.close(() => {
+                console.info("[SocketConfig] Socket.io engine closed.");
+                resolve();
+            });
+        });
+    }
+
+    this.io = null;
+    console.info("[SocketConfig] Socket.io cleanup complete.");
+}
 }
 
 export const socketConfig = new SocketConfig();

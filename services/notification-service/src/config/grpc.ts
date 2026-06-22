@@ -9,10 +9,10 @@ import { env } from './env.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PROTO_PATH = env.AUTH_PROTO_PATH && env.AUTH_PROTO_PATH.startsWith('/') 
-  ? env.AUTH_PROTO_PATH 
+const PROTO_PATH = env.AUTH_PROTO_PATH && env.AUTH_PROTO_PATH.startsWith('/')
+  ? env.AUTH_PROTO_PATH
   : path.resolve(__dirname, env.AUTH_PROTO_PATH || '../../../../shared-proto/auth/auth.proto');
-  const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
+const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   keepCase: true,
   longs: String,
   enums: String,
@@ -85,9 +85,25 @@ class GrpcConfig implements IGrpcConfig {
 
   public async stop(): Promise<void> {
     return new Promise((resolve) => {
+      let isResolved = false;
+
+
+      const forceKillTimer = setTimeout(() => {
+        if (!isResolved) {
+          console.warn('gRPC shutdown timed out. Forcing stop...');
+          this.server.forceShutdown();
+          isResolved = true;
+          resolve();
+        }
+      }, 2000);
+
       this.server.tryShutdown(() => {
-        console.info('[gRPC Server] Gracefully shut down');
-        resolve();
+        if (!isResolved) {
+          clearTimeout(forceKillTimer);
+          console.info('gRPC Server gracefully shut down');
+          isResolved = true;
+          resolve();
+        }
       });
     });
   }

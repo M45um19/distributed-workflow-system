@@ -15,6 +15,7 @@ import (
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/pkg/email"
 	"github.com/jmoiron/sqlx"
 	"github.com/redis/go-redis/v9"
+	kafkaGo "github.com/segmentio/kafka-go"
 	"go.temporal.io/sdk/client"
 	temporalWorker "go.temporal.io/sdk/worker"
 )
@@ -25,6 +26,7 @@ type Container struct {
 	TaskCtrl       *task.Controller
 	AuthMid        *middleware.AuthMiddleware
 	KafkaWorker    *kafka.Worker
+	KafkaWriter    *kafkaGo.Writer
 	TemporalWorker *temporal.Worker
 	TemporalClient client.Client
 }
@@ -56,6 +58,7 @@ func NewContainer(cfg *config.Config, db *sqlx.DB, rdb *redis.Client, authGRPCCl
 		TaskCtrl:       taskCtrl,
 		AuthMid:        authMid,
 		TemporalClient: tempClient,
+		KafkaWriter:    notiWriter,
 	}
 
 	if isWorker {

@@ -22,6 +22,9 @@ class DatabaseConfig implements IDatabase {
     });
 
     mongoose.connection.on("disconnected", () => {
+      if (mongoose.connection.readyState === 0) {
+        return;
+      }
       console.warn("MongoDB connection disconnected. Attempting to reconnect...");
     });
   }
@@ -54,8 +57,12 @@ class DatabaseConfig implements IDatabase {
     }
 
     try {
-      await mongoose.disconnect();
-      console.info("🔌 MongoDB connection closed safely.");
+
+      mongoose.connection.removeAllListeners("disconnected");
+
+      await mongoose.connection.close();
+      
+      console.info("MongoDB connection closed safely.");
     } catch (error) {
       console.error("Error during MongoDB disconnection:", error);
     }
