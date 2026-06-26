@@ -48,6 +48,8 @@ spec:
         env:
         - name: GO_ENV
           value: "production"
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://monitoring-opentelemetry-collector:4317"
         - name: PORT
           value: "8080"
         - name: DB_HOST
@@ -110,10 +112,14 @@ spec:
       - name: workspace-worker
         image: workspace-service:latest 
         imagePullPolicy: Never
-        command: ["/app/workspace-worker"] 
+        command: ["./workspace-worker"] 
         env:
         - name: GO_ENV
           value: "production"
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://monitoring-opentelemetry-collector:4317"
+        - name: SERVICE_NAME
+          value: "workspace-service"
         - name: PORT
           value: "8080"
         - name: DB_HOST

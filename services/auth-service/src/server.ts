@@ -8,6 +8,7 @@ import { grpcConfig } from "./config/grpc.js";
 import { kafkaConfig } from "./config/kafka.js";
 import { redisService } from "./config/redis.js";
 import { registerAuthGrpcService } from "./modules/auth/auth.grpc.js";
+import sdk from "./monitoring/tracing.js";
 
 let httpServer: Server;
 let isShuttingDown = false;
@@ -38,6 +39,9 @@ const startServer = async () => {
 
 const releaseResources = async () => {
   try {
+    console.log("Shutting down OpenTelemetry SDK...");
+    await sdk.shutdown();
+    console.log("Tracing terminated cleanly.");
     if (grpcConfig && typeof grpcConfig.stop === 'function') {
       await grpcConfig.stop();
       console.log("gRPC server stopped safely.");

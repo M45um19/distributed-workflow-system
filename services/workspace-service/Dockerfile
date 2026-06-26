@@ -1,5 +1,6 @@
-
 FROM golang:1.26-alpine AS builder
+
+RUN apk add --no-cache git
 
 ENV CGO_ENABLED=0 \
     GOOS=linux \
@@ -7,14 +8,15 @@ ENV CGO_ENABLED=0 \
 
 WORKDIR /app
 
-COPY go.mod go.sum ./
-RUN go version && go mod download
+COPY services/workspace-service/go.mod services/workspace-service/go.sum ./services/workspace-service/
 
-COPY . .
+WORKDIR /app/services/workspace-service
+RUN go mod download
 
-RUN go build -ldflags="-s -w" -o workspace-api ./cmd/api/main.go
-RUN go build -ldflags="-s -w" -o workspace-worker ./cmd/worker/main.go
+COPY . /app
 
+RUN go build -ldflags="-s -w" -o /app/workspace-api ./cmd/api/main.go
+RUN go build -ldflags="-s -w" -o /app/workspace-worker ./cmd/worker/main.go
 
 
 FROM alpine:3.19
