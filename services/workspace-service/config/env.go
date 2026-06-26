@@ -9,22 +9,24 @@ import (
 )
 
 type Config struct {
-	DBHost                 string `mapstructure:"DB_HOST"`
-	DBPort                 string `mapstructure:"DB_PORT"`
-	DBUser                 string `mapstructure:"DB_USER"`
-	DBPassword             string `mapstructure:"DB_PASSWORD"`
-	DBName                 string `mapstructure:"DB_NAME"`
-	Port                   string `mapstructure:"PORT"`
-	JWTSecret              string `mapstructure:"JWT_SECRET"`
-	RedisURI               string `mapstructure:"REDIS_URI"`
-	AuthServiceGRPCAddress string `mapstructure:"AUTH_SERVICE_GRPC_ADDR"`
-	GoENV                  string `mapstructure:"GO_ENV"`
-	KafkaBrokers           string `mapstructure:"KAFKA_BROKERS"`
-	TemporalHost           string `mapstructure:"TEMPORAL_HOST"`
-	SmtpHost               string `mapstructure:"SMTP_HOST"`
-	SmtpPort               string `mapstructure:"SMTP_PORT"`
-	SmtpFrom               string `mapstructure:"FROM"`
-	SmtpPassword           string `mapstructure:"PASSWORD"`
+	DBHost                   string `mapstructure:"DB_HOST"`
+	DBPort                   string `mapstructure:"DB_PORT"`
+	DBUser                   string `mapstructure:"DB_USER"`
+	DBPassword               string `mapstructure:"DB_PASSWORD"`
+	DBName                   string `mapstructure:"DB_NAME"`
+	Port                     string `mapstructure:"PORT"`
+	JWTSecret                string `mapstructure:"JWT_SECRET"`
+	RedisURI                 string `mapstructure:"REDIS_URI"`
+	AuthServiceGRPCAddress   string `mapstructure:"AUTH_SERVICE_GRPC_ADDR"`
+	GoENV                    string `mapstructure:"GO_ENV"`
+	KafkaBrokers             string `mapstructure:"KAFKA_BROKERS"`
+	TemporalHost             string `mapstructure:"TEMPORAL_HOST"`
+	SmtpHost                 string `mapstructure:"SMTP_HOST"`
+	SmtpPort                 string `mapstructure:"SMTP_PORT"`
+	SmtpFrom                 string `mapstructure:"FROM"`
+	SmtpPassword             string `mapstructure:"PASSWORD"`
+	OtelExporterOtlpEndpoint string `mapstructure:"OTEL_EXPORTER_OTLP_ENDPOINT"`
+	ServiceName              string `mapstructure:"SERVICE_NAME"`
 }
 
 func LoadConfig() (config *Config, err error) {
