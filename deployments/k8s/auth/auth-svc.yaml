@@ -49,6 +49,10 @@ spec:
         env:
         - name: NODE_ENV
           value: "production"
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://monitoring-opentelemetry-collector:4317"
+        - name: SERVICE_NAME
+          value: "auth-service"
         - name: PORT
           value: "5000"
         - name: KAFKA_BROKERS

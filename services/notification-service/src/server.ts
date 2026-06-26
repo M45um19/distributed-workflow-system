@@ -7,6 +7,7 @@ import { dbConfig } from './config/db.js';
 import { env } from './config/env.js';
 import { redisService } from './config/redis.js';
 import { socketConfig } from './config/socket.js';
+import sdk from './monitoring/tracing.js';
 
 let httpServer: Server;
 let isShuttingDown = false;
@@ -22,7 +23,7 @@ const startServer = async () => {
 
     httpServer = http.createServer(app);
     socketConfig.init(httpServer);
-    
+
     const PORT = env.PORT;
     httpServer.listen(PORT, () => {
       console.log(`Notification API & Socket Server running on port: ${PORT}`);
@@ -37,7 +38,11 @@ const releaseResources = async () => {
   try {
     await socketConfig.shutdown();
   } catch (err) { console.error("Socket close error:", err); }
-
+  try {
+    console.log("Shutting down OpenTelemetry SDK...");
+    await sdk.shutdown();
+    console.log("Tracing terminated cleanly.");
+  } catch (err) { console.error("Tracing close error:", err); }
   try {
     if (redisService && typeof redisService.quit === 'function') {
       await redisService.quit();

@@ -23,13 +23,18 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
 func main() {
+
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("Config load failed: %v", err)
 	}
+
+	cleanup := monitoring.InitTracer(cfg.ServiceName, cfg.OtelExporterOtlpEndpoint)
+	defer cleanup()
 
 	db, err := config.ConnectDB(cfg)
 	if err != nil {
@@ -44,6 +49,7 @@ func main() {
 
 	container := app.NewContainer(cfg, db, rdb, authGRPCClient, false)
 	r := gin.Default()
+	r.Use(otelgin.Middleware("workspace-service"))
 	r.Use(middleware.GlobalErrorHandler(cfg.GoENV))
 	r.Use(monitoring.MetricsMiddleware())
 	api := r.Group("/api/v1/workspace")
