@@ -3,6 +3,7 @@ package monitoring
 import (
 	"context"
 	"log"
+	"strings"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
@@ -15,8 +16,13 @@ import (
 func InitTracer(serviceName string, collectorURL string) func() {
 	ctx := context.Background()
 
+	// Strip http:// or https:// scheme because otlptracegrpc.WithEndpoint expects a raw host:port
+	endpoint := collectorURL
+	endpoint = strings.TrimPrefix(endpoint, "http://")
+	endpoint = strings.TrimPrefix(endpoint, "https://")
+
 	exporter, err := otlptracegrpc.New(ctx,
-		otlptracegrpc.WithEndpoint(collectorURL),
+		otlptracegrpc.WithEndpoint(endpoint),
 		otlptracegrpc.WithInsecure(),
 	)
 	if err != nil {

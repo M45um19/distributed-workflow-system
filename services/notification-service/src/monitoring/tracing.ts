@@ -1,4 +1,4 @@
-
+import { diag, DiagConsoleLogger, DiagLogLevel } from '@opentelemetry/api';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import { GrpcInstrumentation } from '@opentelemetry/instrumentation-grpc';
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
@@ -8,6 +8,8 @@ import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions'
 
 import { env } from '../config/env.js';
 
+// Enable OpenTelemetry SDK internal diagnostic logging
+diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO);
 
 const resource = new Resource({
   [SemanticResourceAttributes.SERVICE_NAME]: env.SERVICE_NAME,
@@ -26,7 +28,12 @@ const sdk = new NodeSDK({
   ],
 });
 
-sdk.start();
+try {
+  sdk.start();
+  console.log('OpenTelemetry SDK initialized successfully.');
+} catch (error) {
+  console.error('Error initializing OpenTelemetry SDK:', error);
+}
 
 process.on('SIGTERM', async () => {
   console.log('Shutting down OpenTelemetry SDK...');
