@@ -9,6 +9,7 @@ import (
 
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/config"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/app"
+	"github.com/M45um19/distributed-workflow-system/services/workspace-service/pkg/monitoring"
 )
 
 func main() {
@@ -16,6 +17,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	cleanup := monitoring.InitTracer(cfg.ServiceName, cfg.OtelExporterOtlpEndpoint)
+	defer cleanup()
 
 	db, err := config.ConnectDB(cfg)
 	if err != nil {
