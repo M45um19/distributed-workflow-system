@@ -1,3 +1,6 @@
+/* eslint-disable-next-line*/
+import sdk from './monitoring/tracing.js';
+
 import { AppContainer } from './app.container.js';
 import { dbConfig } from './config/db.js';
 import { kafkaConfig } from './config/kafka.js';
@@ -26,6 +29,14 @@ const shutdown = async (signal: string) => {
     console.info(`Received ${signal}. Shutting down worker...`);
 
     try { await kafkaConfig.disconnect(); } catch (e) { console.error(e); }
+
+    try {
+        console.log("Shutting down OpenTelemetry SDK...");
+        await sdk.shutdown();
+        console.log("Tracing terminated cleanly.");
+    } catch (e) {
+        console.error("Tracing close error:", e);
+    }
 
     try { await socketConfig.shutdown(); } catch (e) { console.error(e); }
 

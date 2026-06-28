@@ -1,3 +1,6 @@
+/* eslint-disable-next-line*/
+import sdk from "./monitoring/tracing.js";
+
 import { Server } from "http";
 
 import { AppContainer } from "./app.container.js";
@@ -8,7 +11,6 @@ import { grpcConfig } from "./config/grpc.js";
 import { kafkaConfig } from "./config/kafka.js";
 import { redisService } from "./config/redis.js";
 import { registerAuthGrpcService } from "./modules/auth/auth.grpc.js";
-import sdk from "./monitoring/tracing.js";
 
 let httpServer: Server;
 let isShuttingDown = false;

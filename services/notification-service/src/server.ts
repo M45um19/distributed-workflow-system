@@ -1,3 +1,6 @@
+/* eslint-disable-next-line*/
+import sdk from './monitoring/tracing.js';
+
 import http from 'http';
 import { Server } from 'http';
 
@@ -7,7 +10,6 @@ import { dbConfig } from './config/db.js';
 import { env } from './config/env.js';
 import { redisService } from './config/redis.js';
 import { socketConfig } from './config/socket.js';
-import sdk from './monitoring/tracing.js';
 
 let httpServer: Server;
 let isShuttingDown = false;
