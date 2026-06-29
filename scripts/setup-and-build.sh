@@ -91,6 +91,7 @@ if [[ "$install_monitoring" == "y" ]]; then
     helm uninstall kube-stack -n monitoring 2>/dev/null || true
     helm uninstall tempo -n monitoring 2>/dev/null || true
     helm uninstall loki -n monitoring 2>/dev/null || true
+    helm uninstall promtail -n monitoring 2>/dev/null || true
     helm uninstall otel-collector -n monitoring 2>/dev/null || true
 
     echo "Installing Nginx Ingress Controller..."
@@ -116,12 +117,13 @@ if [[ "$install_monitoring" == "y" ]]; then
         --set write.replicas=0 \
         --set loki.useTestSchema=true 
 
+    echo "Installing Promtail (Log Shipping Agent)..."
+    helm install promtail grafana/promtail --namespace monitoring \
+        --set "config.clients[0].url=http://loki-gateway/loki/api/v1/push"
+
     echo "Installing OpenTelemetry Collector..."
     helm install otel-collector open-telemetry/opentelemetry-collector --namespace monitoring \
-        --set mode=deployment \
-        --set image.repository="otel/opentelemetry-collector" \
-        --set config.exporters.otlp.endpoint="tempo:4317" \
-        --set config.exporters.otlp.tls.insecure=true
+        -f deployments/k8s/otel-collector-values.yaml
 
     echo "Monitoring & Ingress stack installation completed."
     echo ""
@@ -178,7 +180,7 @@ fi
 echo ""
 echo "  Data Sources Setup (Connections -> Data sources):"
 echo "  - Add Tempo: http://tempo.monitoring.svc.cluster.local:3200"
-echo "  - Add Loki:  http://loki:3100"
+echo "  - Add Loki:  http://loki-gateway.monitoring.svc.cluster.local"
 echo ""
 
 echo "----------------------------------------------------------"
