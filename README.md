@@ -42,9 +42,10 @@ The core objective of the project is to provide a seamless collaborative experie
 - Nginx Ingress → API Gateway
 
 ### Observability
-- Prometheus & Grafana → Metrics
-- Loki → Logging (dev in progress)
-- Jaeger → Tracing (dev in progress)
+- Prometheus → Metrics
+- Loki → Logging
+- OpenTelemetry → Tracing
+- Grafana → Dashboard View
 
 ---
 
@@ -63,13 +64,14 @@ The core objective of the project is to provide a seamless collaborative experie
 | POST | `/api/v1/auth/login` | Login (JWT + Refresh Token) | No | `{"email": "test@test.com", "password": "test1234"}` |
 | POST | `/api/v1/auth/logout` | Logout with device id | Yes |  |
 
-#### gRPC (Internal)
+#### gRPC
 | Method | Request | Response | Description |
 |--------|---------|----------|-------------|
 | `VerifySession` | `token` | `VerifyResponse` | Validates JWT against Redis session & returns user metadata. |
 
 #### Events Produced
 - `user-registered`: Triggered when a new user signs up.
+- `user-logout`: Triggered when a new user logout from a device.
 
 ---
 
@@ -97,9 +99,6 @@ The core objective of the project is to provide a seamless collaborative experie
 | POST | `/api/v1/workspace/tasks/:id/comments` | Add comment | Yes | `{"content":"DONE"}` |
 | GET | `/api/v1/workspace/tasks/:id/comments` | Fetch comments | Yes | N/A |
 
-#### gRPC
-
-- VerifyUser(UserID)
 
 #### Events Produced
 - `send-notification`: Triggered when need to send a notification.
@@ -128,6 +127,7 @@ The core objective of the project is to provide a seamless collaborative experie
 ## Kafka Events
 
 - user-registered → Auth → all service (Snapshot sync)
+- user-logout → Auth → all service (for delete login session)
 - send-notification → all service → notification
 
 ---
@@ -155,12 +155,15 @@ taskflow-backend/
 ├── deployments/                   # Infrastructure & deployment configs
 │   ├── docker-compose.yaml
 │   └── k8s/
+│       ├── global-ingress.yaml    # API Gateway
+│       ├── otel-collector-values.yaml
 │       ├── auth/
 │       ├── workspace/
 │       └── notification/
 │
 ├── scripts/
 │   └── gen-proto.sh               # Generate gRPC code
+│   └── setup-and-build.sh         # Build full backend for local development 
 │
 ├── services/
 │   │
