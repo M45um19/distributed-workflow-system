@@ -98,7 +98,7 @@ const shutdown = async (signal: string) => {
     await new Promise((resolve) => setTimeout(resolve, 5000));
     console.log("Drain period completed. Releasing connections...");
   } else {
-    console.log("⚡ Development Mode: Skipping drain delay. Quick cleaning resources...");
+    console.log("Development Mode: Skipping drain delay. Quick cleaning resources...");
   }
 
   await releaseResources();
