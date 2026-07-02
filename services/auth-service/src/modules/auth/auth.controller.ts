@@ -81,4 +81,19 @@ export class AuthController {
       next(error)
     }
   }
+
+  refreshToken = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const result = await this.authService.refreshToken(req.body)
+
+      sendResponse(res, {
+        statusCode: 200,
+        success: true,
+        message: 'Get new access token successfully',
+        data: result,
+      });
+    } catch (error) {
+      next(error)
+    }
+  }
 }

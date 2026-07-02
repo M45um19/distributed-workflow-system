@@ -9,8 +9,8 @@ import { redisService } from '../../config/redis.js';
 import { AppError } from '../../utils/appError.js';
 import { IUserRepository } from '../user/user.interface.js';
 
-import { AccessTokenPayload, AuthResponse, IAuthService, logOutUserInput, SessionVerification } from './auth.interface.js';
-import { LoginUserDTO, RegisterUserDTO } from './auth.validation.js';
+import { AccessTokenPayload, AuthResponse, IAuthService, logOutUserInput, RefreshTokenPayload, refreshTokenResponse, SessionVerification } from './auth.interface.js';
+import { LoginUserDTO, refreshTokenInput, RegisterUserDTO } from './auth.validation.js';
 
 
 
@@ -194,5 +194,23 @@ export class AuthService implements IAuthService {
     });
 
     return
+  }
+
+  async refreshToken(data: refreshTokenInput): Promise<refreshTokenResponse> {
+    const { refreshToken } = data;
+
+    const decoded = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET as string) as RefreshTokenPayload;
+    const { userId, deviceId } = decoded;
+
+    const sessionData = await redisService.get(`session:${userId}:${deviceId}`);
+    if (!sessionData) throw new AppError('User session not found', 400)
+
+    const accessToken = jwt.sign(
+      { userId: userId, deviceId: deviceId },
+      env.JWT_ACCESS_SECRET as string,
+      { expiresIn: '15m' }
+    );
+
+    return { accessToken };;
   }
 }
