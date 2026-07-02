@@ -63,6 +63,7 @@ The core objective of the project is to provide a seamless collaborative experie
 | POST | `/api/v1/auth/register` | Register user | No | `{"full_name": "test", "email": "test@test.com", "password": "test1234"}` |
 | POST | `/api/v1/auth/login` | Login (JWT + Refresh Token) | No | `{"email": "test@test.com", "password": "test1234"}` |
 | POST | `/api/v1/auth/logout` | Logout with device id | Yes |  |
+| POST | `/api/v1/auth/refresh-token` | Get new access token | No | `{"refreshToken": "eyJhbGc...."}` |
 
 #### gRPC
 | Method | Request | Response | Description |

@@ -16,8 +16,16 @@ export const loginSchema = z.object({
   }),
 });
 
+export const refreshTokenSchema = z.object({
+  body: z.object({
+    refreshToken: z.string(),
+  }),
+});
+
 export type RegisterUserRequest = z.infer<typeof registerSchema>;
 export type LoginUserRequest = z.infer<typeof loginSchema>;
+export type refreshTokenRequest = z.infer<typeof refreshTokenSchema>;
 
 export type RegisterUserDTO = RegisterUserRequest['body'];
 export type LoginUserDTO = LoginUserRequest['body'];
+export type refreshTokenInput = refreshTokenRequest['body'];

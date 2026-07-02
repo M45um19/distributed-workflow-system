@@ -2,7 +2,7 @@
 import { Request } from 'express';
 import { JwtPayload } from 'jsonwebtoken';
 
-import { LoginUserDTO, RegisterUserDTO } from "./auth.validation.js";
+import { LoginUserDTO, refreshTokenInput, RegisterUserDTO } from "./auth.validation.js";
 
 
 export interface AuthResponse {
@@ -35,10 +35,17 @@ export interface logOutUserInput{
   userId: string;
   deviceId: string;
 }
+
+
+export interface refreshTokenResponse{
+  accessToken: string
+}
+
 export interface IAuthService {
   register(data: RegisterUserDTO, deviceMeta: DeviceMeta): Promise<AuthResponse>;
   login(data: LoginUserDTO, deviceMeta: DeviceMeta): Promise<AuthResponse>; verifySession(token: string): Promise<SessionVerification>;
-  logout(data: logOutUserInput): Promise<void>
+  logout(data: logOutUserInput): Promise<void>;
+  refreshToken(data: refreshTokenInput): Promise<refreshTokenResponse>;
 }
 
 export interface AuthUser {
@@ -54,6 +61,11 @@ export interface AuthRequest extends Request {
 }
 
 export interface AccessTokenPayload extends JwtPayload {
+  userId: string;
+  deviceId: string;
+}
+
+export interface RefreshTokenPayload extends JwtPayload {
   userId: string;
   deviceId: string;
 }
