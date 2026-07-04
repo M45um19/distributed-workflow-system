@@ -5,6 +5,7 @@ import { AppContainer } from "./app.container.js";
 import { redisService } from "./config/redis.js";
 import { globalErrorHandler } from "./middleware/error.middleware.js";
 import { setupAuthRoutes } from "./modules/auth/auth.routes.js";
+import { setupUserRoutes } from "./modules/user/user.routes.js";
 import { metricsHandler, metricsMiddleware } from "./monitoring/prometheus.js";
 
 
@@ -15,6 +16,7 @@ const createApp = (container: AppContainer): Application => {
   app.use(express.urlencoded({ extended: true }));
   app.use(metricsMiddleware);
   app.use("/api/v1/auth", setupAuthRoutes(container.authController, container.authMiddleware));
+  app.use("/api/v1/users", setupUserRoutes(container.userController, container.authMiddleware));
 
   setupHealthRoutes(app);
 
