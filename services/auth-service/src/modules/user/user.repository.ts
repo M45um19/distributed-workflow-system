@@ -19,4 +19,8 @@ export class UserRepository implements IUserRepository {
   findById(id: string): Promise<IUserDocument | null> {
     return User.findById(id).exec();
   }
+
+  updateById(id: string, data: Partial<IUser>): Promise<IUserDocument | null> {
+    return User.findByIdAndUpdate(id, data, { new: true, runValidators: true }).exec();
+  }
 }

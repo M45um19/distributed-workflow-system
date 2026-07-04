@@ -26,6 +26,14 @@ spec:
             port:
               number: 80
 
+      - path: /api/v1/users(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: auth-service
+            port:
+              number: 80
+
       - path: /api/v1/workspace(/|$)(.*)
         pathType: ImplementationSpecific
         backend:

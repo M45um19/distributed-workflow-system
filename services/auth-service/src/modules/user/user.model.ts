@@ -28,6 +28,26 @@ const userSchema = new mongoose.Schema<IUser>({
     type: String,
     default: '',
   },
+  address: {
+    type: String,
+    default: '',
+  },
+  phone: {
+    type: String,
+    default: '',
+  },
+  bio: {
+    type: String,
+    default: '',
+  },
+  city: {
+    type: String,
+    default: '',
+  },
+  country: {
+    type: String,
+    default: '',
+  },
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
   versionKey: false
