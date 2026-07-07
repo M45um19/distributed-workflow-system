@@ -22,10 +22,10 @@ type Project struct {
 
 type ProjectRepository interface {
 	Create(ctx context.Context, project *Project) error
-	GetByWorkspaceID(ctx context.Context, workspaceID string) ([]Project, error)
+	GetByWorkspaceID(ctx context.Context, workspaceID string, limit, offset int) ([]Project, error)
 }
 
 type ProjectService interface {
 	CreateProject(ctx context.Context, workspaceID string, input ProjectCreateInput, userID string) (*Project, error)
-	GetProjectsByWorkspace(ctx context.Context, workspaceID string, userID string) ([]Project, error)
+	GetProjectsByWorkspace(ctx context.Context, workspaceID string, userID string, limit, page int) ([]Project, error)
 }

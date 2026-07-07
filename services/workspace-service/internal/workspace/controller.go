@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/domain"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/pkg/apperror"
@@ -35,7 +36,25 @@ func (ctrl *Controller) CreateWorkspace(c *gin.Context) {
 }
 
 func (ctrl *Controller) ListWorkspacesByOwner(c *gin.Context) {
-	workspaces, err := ctrl.service.GetWorkspacesByOwner(c.Request.Context(), c.GetString("user_id"))
+	limit := 10
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			if l > 20 {
+				limit = 20
+			} else {
+				limit = l
+			}
+		}
+	}
+
+	page := 1
+	if pageStr := c.Query("page"); pageStr != "" {
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+		}
+	}
+
+	workspaces, err := ctrl.service.GetWorkspacesByOwner(c.Request.Context(), c.GetString("user_id"), limit, page)
 	if err != nil {
 		c.Error(err)
 		return
@@ -92,9 +111,27 @@ func (ctrl *Controller) AcceptInvite(c *gin.Context) {
 }
 
 func (ctrl *Controller) ListWorkspacesByMember(c *gin.Context) {
+	limit := 10
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			if l > 20 {
+				limit = 20
+			} else {
+				limit = l
+			}
+		}
+	}
+
+	page := 1
+	if pageStr := c.Query("page"); pageStr != "" {
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+		}
+	}
+
 	userID := c.GetString("user_id")
 
-	workspaces, err := ctrl.service.GetWorkspacesByMember(c.Request.Context(), userID)
+	workspaces, err := ctrl.service.GetWorkspacesByMember(c.Request.Context(), userID, limit, page)
 	if err != nil {
 		c.Error(err)
 		return

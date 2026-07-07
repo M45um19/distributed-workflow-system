@@ -2,6 +2,8 @@ package task
 
 import (
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/domain"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/pkg/apperror"
@@ -39,7 +41,38 @@ func (ctrl *Controller) ListTasks(c *gin.Context) {
 	projectID := c.Param("projectId")
 	userID := c.GetString("user_id")
 
-	tasks, err := ctrl.service.GetTasksByProject(c.Request.Context(), projectID, userID)
+	limit := 10
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			if l > 20 {
+				limit = 20
+			} else {
+				limit = l
+			}
+		}
+	}
+
+	page := 1
+	if pageStr := c.Query("page"); pageStr != "" {
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+		}
+	}
+
+	rawStatuses := c.QueryArray("status")
+	var statuses []string
+	for _, s := range rawStatuses {
+		if strings.Contains(s, ",") {
+			parts := strings.Split(s, ",")
+			for _, p := range parts {
+				statuses = append(statuses, strings.ToUpper(strings.TrimSpace(p)))
+			}
+		} else {
+			statuses = append(statuses, strings.ToUpper(strings.TrimSpace(s)))
+		}
+	}
+
+	tasks, err := ctrl.service.GetTasksByProject(c.Request.Context(), projectID, userID, statuses, limit, page)
 	if err != nil {
 		c.Error(err)
 		return

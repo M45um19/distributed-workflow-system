@@ -50,8 +50,9 @@ func (s *service) CreateWorkspace(ctx context.Context, input domain.WorkspaceCre
 	return ws, nil
 }
 
-func (s *service) GetWorkspacesByOwner(ctx context.Context, ownerId string) ([]domain.Workspace, error) {
-	return s.wsRepo.GetByOwnerID(ctx, ownerId)
+func (s *service) GetWorkspacesByOwner(ctx context.Context, ownerId string, limit, page int) ([]domain.Workspace, error) {
+	offset := (page - 1) * limit
+	return s.wsRepo.GetByOwnerID(ctx, ownerId, limit, offset)
 }
 
 func (s *service) InviteUser(ctx context.Context, input domain.WorkspaceInviteRequest) error {
@@ -165,8 +166,9 @@ func (s *service) AcceptInvitation(ctx context.Context, token string, loggedInUs
 	return nil
 }
 
-func (s *service) GetWorkspacesByMember(ctx context.Context, userID string) ([]domain.Workspace, error) {
-	return s.wsRepo.GetByMemberID(ctx, userID)
+func (s *service) GetWorkspacesByMember(ctx context.Context, userID string, limit, page int) ([]domain.Workspace, error) {
+	offset := (page - 1) * limit
+	return s.wsRepo.GetByMemberID(ctx, userID, limit, offset)
 }
 
 func (s *service) GetWorkspaceMembers(ctx context.Context, workspaceID string, userID string) ([]domain.WorkspaceMemberResponse, error) {

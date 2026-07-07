@@ -57,7 +57,7 @@ func (s *service) CreateProject(ctx context.Context, workspaceID string, input d
 	return p, nil
 }
 
-func (s *service) GetProjectsByWorkspace(ctx context.Context, workspaceID string, userID string) ([]domain.Project, error) {
+func (s *service) GetProjectsByWorkspace(ctx context.Context, workspaceID string, userID string, limit, page int) ([]domain.Project, error) {
 	ws, err := s.wsRepo.FindByID(ctx, workspaceID)
 	if err != nil {
 		return nil, err
@@ -76,5 +76,6 @@ func (s *service) GetProjectsByWorkspace(ctx context.Context, workspaceID string
 		}
 	}
 
-	return s.projectRepo.GetByWorkspaceID(ctx, workspaceID)
+	offset := (page - 1) * limit
+	return s.projectRepo.GetByWorkspaceID(ctx, workspaceID, limit, offset)
 }

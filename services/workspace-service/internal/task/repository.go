@@ -27,7 +27,11 @@ func (r *sqlRepository) Create(ctx context.Context, t *domain.Task) error {
 
 func (r *sqlRepository) FindByID(ctx context.Context, id string) (*domain.Task, error) {
 	var t domain.Task
-	query := `SELECT id, project_id, title, description, status, priority, assignee_id, deadline, created_at FROM tasks WHERE id = $1`
+	query := `
+		SELECT t.id, t.project_id, t.title, t.description, t.status, t.priority, t.assignee_id, u.full_name AS assignee_name, t.deadline, t.created_at 
+		FROM tasks t
+		LEFT JOIN users u ON t.assignee_id = u.id
+		WHERE t.id = $1`
 	err := r.db.GetContext(ctx, &t, query, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -40,8 +44,32 @@ func (r *sqlRepository) FindByID(ctx context.Context, id string) (*domain.Task, 
 
 func (r *sqlRepository) GetByProjectID(ctx context.Context, projectID string) ([]domain.Task, error) {
 	var tasks []domain.Task
-	query := `SELECT id, project_id, title, description, status, priority, assignee_id, deadline, created_at FROM tasks WHERE project_id = $1 ORDER BY created_at DESC`
+	query := `
+		SELECT t.id, t.project_id, t.title, t.description, t.status, t.priority, t.assignee_id, u.full_name AS assignee_name, t.deadline, t.created_at 
+		FROM tasks t
+		LEFT JOIN users u ON t.assignee_id = u.id
+		WHERE t.project_id = $1 
+		ORDER BY t.created_at DESC`
 	err := r.db.SelectContext(ctx, &tasks, query, projectID)
+	if err != nil {
+		return nil, err
+	}
+	if tasks == nil {
+		tasks = []domain.Task{}
+	}
+	return tasks, nil
+}
+
+func (r *sqlRepository) GetByProjectIDAndStatus(ctx context.Context, projectID string, status string, limit, offset int) ([]domain.Task, error) {
+	var tasks []domain.Task
+	query := `
+		SELECT t.id, t.project_id, t.title, t.description, t.status, t.priority, t.assignee_id, u.full_name AS assignee_name, t.deadline, t.created_at 
+		FROM tasks t
+		LEFT JOIN users u ON t.assignee_id = u.id
+		WHERE t.project_id = $1 AND t.status = $2 
+		ORDER BY t.created_at DESC 
+		LIMIT $3 OFFSET $4`
+	err := r.db.SelectContext(ctx, &tasks, query, projectID, status, limit, offset)
 	if err != nil {
 		return nil, err
 	}

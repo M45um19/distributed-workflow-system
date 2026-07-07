@@ -85,10 +85,10 @@ func (s *service) CreateTask(ctx context.Context, projectID string, input domain
 		return nil, err
 	}
 
-	return t, nil
+	return s.taskRepo.FindByID(ctx, t.ID)
 }
 
-func (s *service) GetTasksByProject(ctx context.Context, projectID string, userID string) ([]domain.Task, error) {
+func (s *service) GetTasksByProject(ctx context.Context, projectID string, userID string, statuses []string, limit, page int) (map[string][]domain.Task, error) {
 	workspaceID, err := s.taskRepo.GetWorkspaceIDByProjectID(ctx, projectID)
 	if err != nil {
 		return nil, err
@@ -98,7 +98,36 @@ func (s *service) GetTasksByProject(ctx context.Context, projectID string, userI
 		return nil, err
 	}
 
-	return s.taskRepo.GetByProjectID(ctx, projectID)
+	validStatuses := map[string]bool{
+		"TODO":        true,
+		"IN_PROGRESS": true,
+		"REVIEW":      true,
+		"DONE":        true,
+	}
+
+	var filterStatuses []string
+	if len(statuses) == 0 {
+		filterStatuses = []string{"TODO", "IN_PROGRESS", "REVIEW", "DONE"}
+	} else {
+		for _, st := range statuses {
+			if validStatuses[st] {
+				filterStatuses = append(filterStatuses, st)
+			}
+		}
+	}
+
+	offset := (page - 1) * limit
+	result := make(map[string][]domain.Task)
+
+	for _, st := range filterStatuses {
+		tasks, err := s.taskRepo.GetByProjectIDAndStatus(ctx, projectID, st, limit, offset)
+		if err != nil {
+			return nil, err
+		}
+		result[st] = tasks
+	}
+
+	return result, nil
 }
 
 func (s *service) UpdateFullTask(ctx context.Context, taskID string, input domain.TaskUpdateInput, userID string) (*domain.Task, error) {
@@ -128,7 +157,7 @@ func (s *service) UpdateFullTask(ctx context.Context, taskID string, input domai
 	if err := s.taskRepo.Update(ctx, t); err != nil {
 		return nil, err
 	}
-	return t, nil
+	return s.taskRepo.FindByID(ctx, t.ID)
 }
 
 func (s *service) UpdateTaskStatus(ctx context.Context, taskID string, status string, userID string) error {
@@ -140,9 +169,15 @@ func (s *service) UpdateTaskStatus(ctx context.Context, taskID string, status st
 		return apperror.NotFound("Task not found")
 	}
 
-	// Check if user is the assigned member
-	if t.AssigneeID == "" || t.AssigneeID != userID {
-		return apperror.Forbidden("Only the assigned member can change this task status")
+	// Check if user is the assigned member, workspace owner, or admin
+	if t.AssigneeID != userID {
+		workspaceID, err := s.taskRepo.GetWorkspaceIDByTaskID(ctx, taskID)
+		if err != nil {
+			return err
+		}
+		if err := s.checkAccess(ctx, workspaceID, userID, "ADMIN"); err != nil {
+			return apperror.Forbidden("Only the assigned member, admin, or owner can change this task status")
+		}
 	}
 
 	return s.taskRepo.UpdateStatus(ctx, taskID, status)
