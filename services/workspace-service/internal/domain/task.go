@@ -30,15 +30,16 @@ type CommentCreateInput struct {
 }
 
 type Task struct {
-	ID          string    `db:"id" json:"id"`
-	ProjectID   string    `db:"project_id" json:"project_id"`
-	Title       string    `db:"title" json:"title"`
-	Description string    `db:"description" json:"description"`
-	Status      string    `db:"status" json:"status"`
-	Priority    string    `db:"priority" json:"priority"`
-	AssigneeID  string    `db:"assignee_id" json:"assignee_id"`
-	Deadline    time.Time `db:"deadline" json:"deadline"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	ID           string    `db:"id" json:"id"`
+	ProjectID    string    `db:"project_id" json:"project_id"`
+	Title        string    `db:"title" json:"title"`
+	Description  string    `db:"description" json:"description"`
+	Status       string    `db:"status" json:"status"`
+	Priority     string    `db:"priority" json:"priority"`
+	AssigneeID   string    `db:"assignee_id" json:"assignee_id"`
+	AssigneeName *string   `db:"assignee_name" json:"assignee_name"`
+	Deadline     time.Time `db:"deadline" json:"deadline"`
+	CreatedAt    time.Time `db:"created_at" json:"created_at"`
 }
 
 type TaskComment struct {
@@ -53,6 +54,7 @@ type TaskRepository interface {
 	Create(ctx context.Context, task *Task) error
 	FindByID(ctx context.Context, id string) (*Task, error)
 	GetByProjectID(ctx context.Context, projectID string) ([]Task, error)
+	GetByProjectIDAndStatus(ctx context.Context, projectID string, status string, limit, offset int) ([]Task, error)
 	Update(ctx context.Context, task *Task) error
 	UpdateStatus(ctx context.Context, taskID string, status string) error
 
@@ -64,7 +66,7 @@ type TaskRepository interface {
 
 type TaskService interface {
 	CreateTask(ctx context.Context, projectID string, input TaskCreateInput, userID string) (*Task, error)
-	GetTasksByProject(ctx context.Context, projectID string, userID string) ([]Task, error)
+	GetTasksByProject(ctx context.Context, projectID string, userID string, statuses []string, limit, page int) (map[string][]Task, error)
 	UpdateFullTask(ctx context.Context, taskID string, input TaskUpdateInput, userID string) (*Task, error)
 	UpdateTaskStatus(ctx context.Context, taskID string, status string, userID string) error
 
