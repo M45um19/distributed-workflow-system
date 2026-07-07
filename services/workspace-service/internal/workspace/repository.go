@@ -31,11 +31,11 @@ func (r *sqlRepository) FindBySlug(ctx context.Context, slug string) (*domain.Wo
 	return &ws, nil
 }
 
-func (r *sqlRepository) GetByOwnerID(ctx context.Context, ownerId string) ([]domain.Workspace, error) {
+func (r *sqlRepository) GetByOwnerID(ctx context.Context, ownerId string, limit, offset int) ([]domain.Workspace, error) {
 	var workspaces []domain.Workspace
 
-	query := `SELECT id, name, slug, owner_id, description, created_at from workspaces WHERE owner_id=$1 ORDER BY created_at DESC`
-	err := r.db.SelectContext(ctx, &workspaces, query, ownerId)
+	query := `SELECT id, name, slug, owner_id, description, created_at from workspaces WHERE owner_id=$1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`
+	err := r.db.SelectContext(ctx, &workspaces, query, ownerId, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func (r *sqlRepository) AddMember(ctx context.Context, member *domain.WorkspaceM
 	return err
 }
 
-func (r *sqlRepository) GetByMemberID(ctx context.Context, userID string) ([]domain.Workspace, error) {
+func (r *sqlRepository) GetByMemberID(ctx context.Context, userID string, limit, offset int) ([]domain.Workspace, error) {
 	var workspaces []domain.Workspace
 
 	query := `
@@ -101,9 +101,10 @@ func (r *sqlRepository) GetByMemberID(ctx context.Context, userID string) ([]dom
         FROM workspaces w
         INNER JOIN workspace_members wm ON w.id = wm.workspace_id
         WHERE wm.user_id = $1
-        ORDER BY w.created_at DESC`
+        ORDER BY w.created_at DESC
+        LIMIT $2 OFFSET $3`
 
-	err := r.db.SelectContext(ctx, &workspaces, query, userID)
+	err := r.db.SelectContext(ctx, &workspaces, query, userID, limit, offset)
 	if err != nil {
 		return nil, err
 	}
