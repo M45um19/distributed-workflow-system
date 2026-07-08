@@ -27,6 +27,7 @@ type Config struct {
 	SmtpPassword             string `mapstructure:"PASSWORD"`
 	OtelExporterOtlpEndpoint string `mapstructure:"OTEL_EXPORTER_OTLP_ENDPOINT"`
 	ServiceName              string `mapstructure:"SERVICE_NAME"`
+	FrontendURL              string `mapstructure:"FRONTEND_URL"`
 }
 
 func LoadConfig() (config *Config, err error) {

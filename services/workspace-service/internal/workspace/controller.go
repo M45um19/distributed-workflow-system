@@ -83,13 +83,13 @@ func (ctrl *Controller) InviteUser(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	err := ctrl.service.InviteUser(ctx, input)
+	inviteRes, err := ctrl.service.InviteUser(ctx, input)
 	if err != nil {
 		c.Error(err)
 		return
 	}
 
-	response.SendResponse(c, http.StatusAccepted, true, "Invitation sending in progress", nil)
+	response.SendResponse(c, http.StatusAccepted, true, "Invitation sending in progress", inviteRes)
 }
 
 func (ctrl *Controller) AcceptInvite(c *gin.Context) {

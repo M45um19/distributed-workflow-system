@@ -54,6 +54,8 @@ spec:
           value: "workspace-service"
         - name: PORT
           value: "8080"
+        - name: FRONTEND_URL
+          value: "localhost:3000"
         - name: DB_HOST
           value: "host.docker.internal"
         - name: DB_PORT
@@ -124,6 +126,8 @@ spec:
           value: "workspace-service"
         - name: PORT
           value: "8080"
+        - name: FRONTEND_URL
+          value: "localhost:3000"
         - name: DB_HOST
           value: "host.docker.internal"
         - name: DB_PORT

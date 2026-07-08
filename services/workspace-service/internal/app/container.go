@@ -41,13 +41,13 @@ func NewContainer(cfg *config.Config, db *sqlx.DB, rdb *redis.Client, authGRPCCl
 
 	notiWriter := config.NewKafkaWriter(cfg.KafkaBrokers, "send-notification")
 	tempClient := config.ConnectTemporal(cfg.TemporalHost)
-	wsSvc := workspace.NewService(wsRepo, userRepo, tempClient, notiWriter)
+	wsSvc := workspace.NewService(wsRepo, userRepo, tempClient, notiWriter, cfg.FrontendURL)
 	wsCtrl := workspace.NewController(wsSvc)
 
 	projectSvc := project.NewService(projectRepo, wsRepo)
 	projectCtrl := project.NewController(projectSvc)
 
-	taskSvc := task.NewService(taskRepo, wsRepo, notiWriter)
+	taskSvc := task.NewService(taskRepo, wsRepo, userRepo, notiWriter)
 	taskCtrl := task.NewController(taskSvc)
 
 	authMid := middleware.NewAuthMiddleware(cfg.JWTSecret, rdb, authGRPCClient)
@@ -62,7 +62,7 @@ func NewContainer(cfg *config.Config, db *sqlx.DB, rdb *redis.Client, authGRPCCl
 	}
 
 	if isWorker {
-		emailClient := email.NewGmailClient(cfg.SmtpHost, cfg.SmtpPort, cfg.SmtpFrom, cfg.SmtpPassword)
+		emailClient := email.NewGmailClient(cfg.SmtpHost, cfg.SmtpPort, cfg.SmtpFrom, cfg.SmtpPassword, cfg.FrontendURL)
 		userRegHandler := kafka.NewUserRegisteredHandler(userSvc)
 		userLogoutHandler := kafka.NewUserLogoutHandler(rdb)
 		regReader := config.NewKafkaReader(cfg.KafkaBrokers, "user-registered")
