@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/smtp"
+	"strings"
 )
 
 type EmailClient interface {
@@ -12,25 +13,30 @@ type EmailClient interface {
 }
 
 type gmailClient struct {
-	smtpHost string
-	smtpPort string
-	from     string
-	password string
+	smtpHost    string
+	smtpPort    string
+	from        string
+	password    string
+	frontendURL string
 }
 
-func NewGmailClient(host, port, from, password string) EmailClient {
+func NewGmailClient(host, port, from, password, frontendURL string) EmailClient {
+	if !strings.HasPrefix(frontendURL, "http://") && !strings.HasPrefix(frontendURL, "https://") {
+		frontendURL = "http://" + frontendURL
+	}
 	return &gmailClient{
-		smtpHost: host,
-		smtpPort: port,
-		from:     from,
-		password: password,
+		smtpHost:    host,
+		smtpPort:    port,
+		from:        from,
+		password:    password,
+		frontendURL: frontendURL,
 	}
 }
 
 func (g *gmailClient) SendInvite(ctx context.Context, to, token string) error {
 	auth := smtp.PlainAuth("", g.from, g.password, g.smtpHost)
 
-	inviteLink := fmt.Sprintf("https://your-app.com/invite/accept?token=%s", token)
+	inviteLink := fmt.Sprintf("%s/invite/accept?token=%s", g.frontendURL, token)
 	msg := []byte(fmt.Sprintf("To: %s\r\n"+
 		"Subject: Workspace Invitation\r\n"+
 		"\r\n"+

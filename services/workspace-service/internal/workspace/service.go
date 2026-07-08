@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/domain"
@@ -20,14 +21,19 @@ type service struct {
 	userRepo                domain.UserRepository
 	temporalClient          client.Client
 	notificationkafkaWriter *kafka.Writer
+	frontendURL             string
 }
 
-func NewService(wsRepo domain.WorkspaceRepository, userRepo domain.UserRepository, tempClient client.Client, notificationkafkaWriter *kafka.Writer) domain.WorkspaceService {
+func NewService(wsRepo domain.WorkspaceRepository, userRepo domain.UserRepository, tempClient client.Client, notificationkafkaWriter *kafka.Writer, frontendURL string) domain.WorkspaceService {
+	if !strings.HasPrefix(frontendURL, "http://") && !strings.HasPrefix(frontendURL, "https://") {
+		frontendURL = "http://" + frontendURL
+	}
 	return &service{
 		wsRepo:                  wsRepo,
 		userRepo:                userRepo,
 		temporalClient:          tempClient,
 		notificationkafkaWriter: notificationkafkaWriter,
+		frontendURL:             frontendURL,
 	}
 }
 
@@ -55,7 +61,7 @@ func (s *service) GetWorkspacesByOwner(ctx context.Context, ownerId string, limi
 	return s.wsRepo.GetByOwnerID(ctx, ownerId, limit, offset)
 }
 
-func (s *service) InviteUser(ctx context.Context, input domain.WorkspaceInviteRequest) error {
+func (s *service) InviteUser(ctx context.Context, input domain.WorkspaceInviteRequest) (*domain.WorkspaceInviteResponse, error) {
 
 	input.Token = uuid.New().String()
 
@@ -71,30 +77,20 @@ func (s *service) InviteUser(ctx context.Context, input domain.WorkspaceInviteRe
 
 	if err := s.wsRepo.CreateInvite(ctx, invite); err != nil {
 		log.Printf("Failed to save invitation to DB: %v", err)
-		return apperror.InternalServer("Could not process invitation")
+		return nil, apperror.InternalServer("Could not process invitation")
 	}
 
-	notificationPayload := domain.NotificationEventPayload{
-		Channel: "IN_APP",
-		UserID:  input.InviterID,
-		Title:   "Workspace Invitation",
-		Message: fmt.Sprintf("You have been invited to join the workspace as a %s", input.Role),
-		Type:    "INFO",
-	}
-
-	jsonData, err := json.Marshal(notificationPayload)
-	if err != nil {
-		log.Printf("Failed to marshal kafka notification payload: %v", err)
-	} else {
-		err = s.notificationkafkaWriter.WriteMessages(ctx, kafka.Message{
-			Key:   []byte(input.Email),
-			Value: jsonData,
-		})
-		if err != nil {
-			log.Printf("Kafka failed to send message to send-notification: %v", err)
-		} else {
-			log.Printf("Successfully produced message to send-notification for: %s", input.Email)
+	// Try to find if the invited user is registered in the system
+	invitedUser, err := s.userRepo.FindByEmail(ctx, input.Email)
+	if err == nil && invitedUser != nil {
+		notificationPayload := domain.NotificationEventPayload{
+			Channel: "IN_APP",
+			UserID:  invitedUser.ID,
+			Title:   "Workspace Invitation",
+			Message: fmt.Sprintf("You have been invited to join the workspace as a %s", input.Role),
+			Type:    "INFO",
 		}
+		s.sendNotification(ctx, notificationPayload, invitedUser.ID)
 	}
 
 	workflowOptions := client.StartWorkflowOptions{
@@ -111,11 +107,12 @@ func (s *service) InviteUser(ctx context.Context, input domain.WorkspaceInviteRe
 	we, err := s.temporalClient.ExecuteWorkflow(ctx, workflowOptions, workflow.InviteUserWorkflow, wfInput)
 	if err != nil {
 		log.Printf("Temporal Execution Failed: %v", err)
-		return apperror.InternalServer("Temporal error: " + err.Error())
+		return nil, apperror.InternalServer("Temporal error: " + err.Error())
 	}
 
 	log.Printf("Started workflow. WorkflowID: %s, RunID: %s", we.GetID(), we.GetRunID())
-	return nil
+	inviteLink := fmt.Sprintf("%s/invite/accept?token=%s", s.frontendURL, input.Token)
+	return &domain.WorkspaceInviteResponse{InviteURL: inviteLink}, nil
 }
 
 func (s *service) AcceptInvitation(ctx context.Context, token string, loggedInUserID string) error {
@@ -163,6 +160,29 @@ func (s *service) AcceptInvitation(ctx context.Context, token string, loggedInUs
 		log.Printf("Failed to update invite status: %v", err)
 	}
 
+	ws, wsErr := s.wsRepo.FindByID(ctx, invite.WorkspaceID)
+	if wsErr == nil && ws != nil {
+		if ws.OwnerID != loggedInUserID {
+			ownerNotification := domain.NotificationEventPayload{
+				Channel: "IN_APP",
+				UserID:  ws.OwnerID,
+				Title:   "Workspace Member Joined",
+				Message: fmt.Sprintf("%s has accepted the invitation and joined the workspace %s", currentUser.FullName, ws.Name),
+				Type:    "SUCCESS",
+			}
+			s.sendNotification(ctx, ownerNotification, ws.OwnerID)
+		}
+
+		userNotification := domain.NotificationEventPayload{
+			Channel: "IN_APP",
+			UserID:  loggedInUserID,
+			Title:   "Workspace Joined",
+			Message: fmt.Sprintf("You have successfully joined the workspace %s", ws.Name),
+			Type:    "SUCCESS",
+		}
+		s.sendNotification(ctx, userNotification, loggedInUserID)
+	}
+
 	return nil
 }
 
@@ -193,4 +213,21 @@ func (s *service) GetWorkspaceMembers(ctx context.Context, workspaceID string, u
 	}
 
 	return s.wsRepo.GetMembers(ctx, workspaceID)
+}
+
+func (s *service) sendNotification(ctx context.Context, payload domain.NotificationEventPayload, key string) {
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("Failed to marshal kafka notification payload: %v", err)
+		return
+	}
+	err = s.notificationkafkaWriter.WriteMessages(ctx, kafka.Message{
+		Key:   []byte(key),
+		Value: jsonData,
+	})
+	if err != nil {
+		log.Printf("Kafka failed to send notification: %v", err)
+	} else {
+		log.Printf("Successfully produced message to send-notification for: %s", key)
+	}
 }

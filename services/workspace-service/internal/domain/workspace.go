@@ -23,6 +23,10 @@ type AcceptInviteRequest struct {
 	Token string `json:"token" binding:"required"`
 }
 
+type WorkspaceInviteResponse struct {
+	InviteURL string `json:"invite_url"`
+}
+
 type WorkspaceMemberResponse struct {
 	UserID   string    `db:"user_id" json:"user_id"`
 	FullName string    `db:"full_name" json:"full_name"`
@@ -85,7 +89,7 @@ type WorkspaceService interface {
 	CreateWorkspace(ctx context.Context, input WorkspaceCreateInput, ownerID string) (*Workspace, error)
 	GetWorkspacesByOwner(ctx context.Context, ownerId string, limit, page int) ([]Workspace, error)
 	GetWorkspacesByMember(ctx context.Context, userID string, limit, page int) ([]Workspace, error)
-	InviteUser(ctx context.Context, input WorkspaceInviteRequest) error
+	InviteUser(ctx context.Context, input WorkspaceInviteRequest) (*WorkspaceInviteResponse, error)
 	AcceptInvitation(ctx context.Context, token string, loggedInUserID string) error
 	GetWorkspaceMembers(ctx context.Context, workspaceID string, userID string) ([]WorkspaceMemberResponse, error)
 }
