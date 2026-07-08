@@ -38,3 +38,13 @@ func (r *repository) FindByID(ctx context.Context, id string) (*domain.UserSnaps
 	}
 	return &u, nil
 }
+
+func (r *repository) FindByEmail(ctx context.Context, email string) (*domain.UserSnapshot, error) {
+	var u domain.UserSnapshot
+	query := `SELECT id, full_name, email, avatar_url, role, created_at FROM users WHERE email = $1`
+	err := r.db.GetContext(ctx, &u, query, email)
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
