@@ -68,21 +68,21 @@ type WorkspaceMember struct {
 //model end
 
 type WorkspaceRepository interface {
-	Create(ctx context.Context, ws *Workspace) error
-	FindBySlug(ctx context.Context, slug string) (*Workspace, error)
-	GetByOwnerID(ctx context.Context, ownerId string, limit, offset int) ([]Workspace, error)
-	GetByMemberID(ctx context.Context, userID string, limit, offset int) ([]Workspace, error)
+	Create(ctx context.Context, workspaceID string, ws *Workspace) error
+	FindBySlug(ctx context.Context, workspaceID string, slug string) (*Workspace, error)
+	GetByOwnerID(ctx context.Context, workspaceID string, ownerId string, limit, offset int) ([]Workspace, error)
+	GetByMemberID(ctx context.Context, workspaceID string, userID string, limit, offset int) ([]Workspace, error)
 
-	CreateInvite(ctx context.Context, invite *WorkspaceInvitation) error
-	FindInviteByToken(ctx context.Context, token string) (*WorkspaceInvitation, error)
+	CreateInvite(ctx context.Context, workspaceID string, invite *WorkspaceInvitation) error
+	FindInviteByToken(ctx context.Context, workspaceID string, token string) (*WorkspaceInvitation, error)
 
-	UpdateInviteStatus(ctx context.Context, id string, status string) error
+	UpdateInviteStatus(ctx context.Context, workspaceID string, id string, status string) error
 
-	AddMember(ctx context.Context, member *WorkspaceMember) error
-	IsMember(ctx context.Context, workspaceID, userID string) (bool, error)
-	FindByID(ctx context.Context, id string) (*Workspace, error)
+	AddMember(ctx context.Context, workspaceID string, member *WorkspaceMember) error
+	IsMember(ctx context.Context, workspaceID string, userID string) (bool, error)
+	FindByID(ctx context.Context, workspaceID string, id string) (*Workspace, error)
 	GetMembers(ctx context.Context, workspaceID string) ([]WorkspaceMemberResponse, error)
-	GetMemberRole(ctx context.Context, workspaceID, userID string) (string, error)
+	GetMemberRole(ctx context.Context, workspaceID string, userID string) (string, error)
 }
 
 type WorkspaceService interface {

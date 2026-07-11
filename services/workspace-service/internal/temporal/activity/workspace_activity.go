@@ -31,7 +31,7 @@ func (a *WorkspaceActivities) SendReminderEmail(ctx context.Context, to string) 
 }
 
 func (a *WorkspaceActivities) CheckInviteStatus(ctx context.Context, token string) (string, error) {
-	invite, err := a.repo.FindInviteByToken(ctx, token)
+	invite, err := a.repo.FindInviteByToken(ctx, "", token)
 	if err != nil {
 		return "", err
 	}
@@ -41,7 +41,7 @@ func (a *WorkspaceActivities) CheckInviteStatus(ctx context.Context, token strin
 func (a *WorkspaceActivities) ExpireInvite(ctx context.Context, token string) error {
 	log.Printf("[Activity] Expiring invite token: %s", token)
 
-	invite, err := a.repo.FindInviteByToken(ctx, token)
+	invite, err := a.repo.FindInviteByToken(ctx, "", token)
 	if err != nil {
 		return err
 	}
@@ -50,5 +50,5 @@ func (a *WorkspaceActivities) ExpireInvite(ctx context.Context, token string) er
 		return nil
 	}
 
-	return a.repo.UpdateInviteStatus(ctx, invite.ID, "EXPIRED")
+	return a.repo.UpdateInviteStatus(ctx, invite.WorkspaceID, invite.ID, "EXPIRED")
 }

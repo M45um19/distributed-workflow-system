@@ -10,6 +10,7 @@ import (
 
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/domain"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/pkg/apperror"
+	"github.com/google/uuid"
 	"github.com/segmentio/kafka-go"
 )
 
@@ -30,7 +31,7 @@ func NewService(taskRepo domain.TaskRepository, wsRepo domain.WorkspaceRepositor
 }
 
 func (s *service) checkAccess(ctx context.Context, workspaceID, userID string, allowedRoles ...string) error {
-	ws, err := s.wsRepo.FindByID(ctx, workspaceID)
+	ws, err := s.wsRepo.FindByID(ctx, workspaceID, workspaceID)
 	if err != nil {
 		return err
 	}
@@ -63,20 +64,19 @@ func (s *service) checkAccess(ctx context.Context, workspaceID, userID string, a
 	return apperror.Forbidden("You do not have enough permissions for this action")
 }
 
-func (s *service) CreateTask(ctx context.Context, projectID string, input domain.TaskCreateInput, userID string) (*domain.Task, error) {
-	workspaceID, err := s.taskRepo.GetWorkspaceIDByProjectID(ctx, projectID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, apperror.NotFound("Project not found")
-		}
-		return nil, err
-	}
-
+func (s *service) CreateTask(ctx context.Context, workspaceID string, projectID string, input domain.TaskCreateInput, userID string) (*domain.Task, error) {
 	if err := s.checkAccess(ctx, workspaceID, userID, "ADMIN"); err != nil {
 		return nil, err
 	}
 
+	taskID, err := uuid.NewV7()
+	if err != nil {
+		return nil, apperror.InternalServer("failed to generate task ID: " + err.Error())
+	}
+
 	t := &domain.Task{
+		ID:          taskID.String(),
+		WorkspaceID: workspaceID,
 		ProjectID:   projectID,
 		Title:       input.Title,
 		Description: input.Description,
@@ -86,11 +86,11 @@ func (s *service) CreateTask(ctx context.Context, projectID string, input domain
 		Deadline:    input.Deadline,
 	}
 
-	if err := s.taskRepo.Create(ctx, t); err != nil {
+	if err := s.taskRepo.Create(ctx, workspaceID, t); err != nil {
 		return nil, err
 	}
 
-	createdTask, err := s.taskRepo.FindByID(ctx, t.ID)
+	createdTask, err := s.taskRepo.FindByID(ctx, workspaceID, t.ID)
 	if err == nil && createdTask != nil && createdTask.AssigneeID != "" && createdTask.AssigneeID != userID {
 		notificationPayload := domain.NotificationEventPayload{
 			Channel: "IN_APP",
@@ -105,12 +105,7 @@ func (s *service) CreateTask(ctx context.Context, projectID string, input domain
 	return createdTask, err
 }
 
-func (s *service) GetTasksByProject(ctx context.Context, projectID string, userID string, statuses []string, limit, page int) (map[string][]domain.Task, error) {
-	workspaceID, err := s.taskRepo.GetWorkspaceIDByProjectID(ctx, projectID)
-	if err != nil {
-		return nil, err
-	}
-
+func (s *service) GetTasksByProject(ctx context.Context, workspaceID string, projectID string, userID string, statuses []string, limit, page int) (map[string][]domain.Task, error) {
 	if err := s.checkAccess(ctx, workspaceID, userID); err != nil {
 		return nil, err
 	}
@@ -137,7 +132,7 @@ func (s *service) GetTasksByProject(ctx context.Context, projectID string, userI
 	result := make(map[string][]domain.Task)
 
 	for _, st := range filterStatuses {
-		tasks, err := s.taskRepo.GetByProjectIDAndStatus(ctx, projectID, st, limit, offset)
+		tasks, err := s.taskRepo.GetByProjectIDAndStatus(ctx, workspaceID, projectID, st, limit, offset)
 		if err != nil {
 			return nil, err
 		}
@@ -147,18 +142,13 @@ func (s *service) GetTasksByProject(ctx context.Context, projectID string, userI
 	return result, nil
 }
 
-func (s *service) UpdateFullTask(ctx context.Context, taskID string, input domain.TaskUpdateInput, userID string) (*domain.Task, error) {
-	t, err := s.taskRepo.FindByID(ctx, taskID)
+func (s *service) UpdateFullTask(ctx context.Context, workspaceID string, taskID string, input domain.TaskUpdateInput, userID string) (*domain.Task, error) {
+	t, err := s.taskRepo.FindByID(ctx, workspaceID, taskID)
 	if err != nil {
 		return nil, err
 	}
 	if t == nil {
 		return nil, apperror.NotFound("Task not found")
-	}
-
-	workspaceID, err := s.taskRepo.GetWorkspaceIDByTaskID(ctx, taskID)
-	if err != nil {
-		return nil, err
 	}
 
 	if err := s.checkAccess(ctx, workspaceID, userID, "ADMIN"); err != nil {
@@ -171,11 +161,11 @@ func (s *service) UpdateFullTask(ctx context.Context, taskID string, input domai
 	t.AssigneeID = input.AssigneeID
 	t.Deadline = input.Deadline
 
-	if err := s.taskRepo.Update(ctx, t); err != nil {
+	if err := s.taskRepo.Update(ctx, workspaceID, t); err != nil {
 		return nil, err
 	}
 
-	updatedTask, err := s.taskRepo.FindByID(ctx, t.ID)
+	updatedTask, err := s.taskRepo.FindByID(ctx, workspaceID, t.ID)
 	if err == nil && updatedTask != nil && updatedTask.AssigneeID != "" && updatedTask.AssigneeID != userID {
 		notificationPayload := domain.NotificationEventPayload{
 			Channel: "IN_APP",
@@ -190,8 +180,8 @@ func (s *service) UpdateFullTask(ctx context.Context, taskID string, input domai
 	return updatedTask, err
 }
 
-func (s *service) UpdateTaskStatus(ctx context.Context, taskID string, status string, userID string) error {
-	t, err := s.taskRepo.FindByID(ctx, taskID)
+func (s *service) UpdateTaskStatus(ctx context.Context, workspaceID string, taskID string, status string, userID string) error {
+	t, err := s.taskRepo.FindByID(ctx, workspaceID, taskID)
 	if err != nil {
 		return err
 	}
@@ -201,16 +191,12 @@ func (s *service) UpdateTaskStatus(ctx context.Context, taskID string, status st
 
 	// Check if user is the assigned member, workspace owner, or admin
 	if t.AssigneeID != userID {
-		workspaceID, err := s.taskRepo.GetWorkspaceIDByTaskID(ctx, taskID)
-		if err != nil {
-			return err
-		}
 		if err := s.checkAccess(ctx, workspaceID, userID, "ADMIN"); err != nil {
 			return apperror.Forbidden("Only the assigned member, admin, or owner can change this task status")
 		}
 	}
 
-	if err := s.taskRepo.UpdateStatus(ctx, taskID, status); err != nil {
+	if err := s.taskRepo.UpdateStatus(ctx, workspaceID, taskID, status); err != nil {
 		return err
 	}
 
@@ -228,30 +214,29 @@ func (s *service) UpdateTaskStatus(ctx context.Context, taskID string, status st
 	return nil
 }
 
-func (s *service) AddComment(ctx context.Context, taskID string, input domain.CommentCreateInput, userID string) (*domain.TaskComment, error) {
-	workspaceID, err := s.taskRepo.GetWorkspaceIDByTaskID(ctx, taskID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, apperror.NotFound("Task not found")
-		}
-		return nil, err
-	}
-
+func (s *service) AddComment(ctx context.Context, workspaceID string, taskID string, input domain.CommentCreateInput, userID string) (*domain.TaskComment, error) {
 	if err := s.checkAccess(ctx, workspaceID, userID); err != nil {
 		return nil, err
 	}
 
-	comment := &domain.TaskComment{
-		TaskID:  taskID,
-		UserID:  userID,
-		Content: input.Content,
+	commentID, err := uuid.NewV7()
+	if err != nil {
+		return nil, apperror.InternalServer("failed to generate comment ID: " + err.Error())
 	}
 
-	if err := s.taskRepo.CreateComment(ctx, comment); err != nil {
+	comment := &domain.TaskComment{
+		ID:          commentID.String(),
+		WorkspaceID: workspaceID,
+		TaskID:      taskID,
+		UserID:      userID,
+		Content:     input.Content,
+	}
+
+	if err := s.taskRepo.CreateComment(ctx, workspaceID, comment); err != nil {
 		return nil, err
 	}
 
-	t, err := s.taskRepo.FindByID(ctx, taskID)
+	t, err := s.taskRepo.FindByID(ctx, workspaceID, taskID)
 	if err == nil && t != nil && t.AssigneeID != "" && t.AssigneeID != userID {
 		commenterName := "Someone"
 		commenter, err := s.userRepo.FindByID(ctx, userID)
@@ -272,17 +257,12 @@ func (s *service) AddComment(ctx context.Context, taskID string, input domain.Co
 	return comment, nil
 }
 
-func (s *service) GetTaskComments(ctx context.Context, taskID string, userID string) ([]domain.TaskComment, error) {
-	workspaceID, err := s.taskRepo.GetWorkspaceIDByTaskID(ctx, taskID)
-	if err != nil {
-		return nil, err
-	}
-
+func (s *service) GetTaskComments(ctx context.Context, workspaceID string, taskID string, userID string) ([]domain.TaskComment, error) {
 	if err := s.checkAccess(ctx, workspaceID, userID); err != nil {
 		return nil, err
 	}
 
-	return s.taskRepo.GetCommentsByTaskID(ctx, taskID)
+	return s.taskRepo.GetCommentsByTaskID(ctx, workspaceID, taskID)
 }
 
 func (s *service) sendNotification(ctx context.Context, payload domain.NotificationEventPayload, key string) {

@@ -10,7 +10,9 @@ export interface INotification {
   updatedAt?: Date;
 }
 
-export interface INotificationDocument extends INotification, Document {}
+export interface INotificationDocument extends INotification, Document<string> {
+  _id: string;
+}
 
 export interface IFetchNotificationsResponse {
   notifications: INotificationDocument[];
