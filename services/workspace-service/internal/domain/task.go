@@ -31,6 +31,7 @@ type CommentCreateInput struct {
 
 type Task struct {
 	ID           string    `db:"id" json:"id"`
+	WorkspaceID  string    `db:"workspace_id" json:"workspace_id"`
 	ProjectID    string    `db:"project_id" json:"project_id"`
 	Title        string    `db:"title" json:"title"`
 	Description  string    `db:"description" json:"description"`
@@ -43,33 +44,34 @@ type Task struct {
 }
 
 type TaskComment struct {
-	ID        string    `db:"id" json:"id"`
-	TaskID    string    `db:"task_id" json:"task_id"`
-	UserID    string    `db:"user_id" json:"user_id"`
-	Content   string    `db:"content" json:"content"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	ID          string    `db:"id" json:"id"`
+	WorkspaceID string    `db:"workspace_id" json:"workspace_id"`
+	TaskID      string    `db:"task_id" json:"task_id"`
+	UserID      string    `db:"user_id" json:"user_id"`
+	Content     string    `db:"content" json:"content"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 }
 
 type TaskRepository interface {
-	Create(ctx context.Context, task *Task) error
-	FindByID(ctx context.Context, id string) (*Task, error)
-	GetByProjectID(ctx context.Context, projectID string) ([]Task, error)
-	GetByProjectIDAndStatus(ctx context.Context, projectID string, status string, limit, offset int) ([]Task, error)
-	Update(ctx context.Context, task *Task) error
-	UpdateStatus(ctx context.Context, taskID string, status string) error
+	Create(ctx context.Context, workspaceID string, task *Task) error
+	FindByID(ctx context.Context, workspaceID string, id string) (*Task, error)
+	GetByProjectID(ctx context.Context, workspaceID string, projectID string) ([]Task, error)
+	GetByProjectIDAndStatus(ctx context.Context, workspaceID string, projectID string, status string, limit, offset int) ([]Task, error)
+	Update(ctx context.Context, workspaceID string, task *Task) error
+	UpdateStatus(ctx context.Context, workspaceID string, taskID string, status string) error
 
-	CreateComment(ctx context.Context, comment *TaskComment) error
-	GetCommentsByTaskID(ctx context.Context, taskID string) ([]TaskComment, error)
-	GetWorkspaceIDByProjectID(ctx context.Context, projectID string) (string, error)
-	GetWorkspaceIDByTaskID(ctx context.Context, taskID string) (string, error)
+	CreateComment(ctx context.Context, workspaceID string, comment *TaskComment) error
+	GetCommentsByTaskID(ctx context.Context, workspaceID string, taskID string) ([]TaskComment, error)
+	GetWorkspaceIDByProjectID(ctx context.Context, workspaceID string, projectID string) (string, error)
+	GetWorkspaceIDByTaskID(ctx context.Context, workspaceID string, taskID string) (string, error)
 }
 
 type TaskService interface {
-	CreateTask(ctx context.Context, projectID string, input TaskCreateInput, userID string) (*Task, error)
-	GetTasksByProject(ctx context.Context, projectID string, userID string, statuses []string, limit, page int) (map[string][]Task, error)
-	UpdateFullTask(ctx context.Context, taskID string, input TaskUpdateInput, userID string) (*Task, error)
-	UpdateTaskStatus(ctx context.Context, taskID string, status string, userID string) error
+	CreateTask(ctx context.Context, workspaceID string, projectID string, input TaskCreateInput, userID string) (*Task, error)
+	GetTasksByProject(ctx context.Context, workspaceID string, projectID string, userID string, statuses []string, limit, page int) (map[string][]Task, error)
+	UpdateFullTask(ctx context.Context, workspaceID string, taskID string, input TaskUpdateInput, userID string) (*Task, error)
+	UpdateTaskStatus(ctx context.Context, workspaceID string, taskID string, status string, userID string) error
 
-	AddComment(ctx context.Context, taskID string, input CommentCreateInput, userID string) (*TaskComment, error)
-	GetTaskComments(ctx context.Context, taskID string, userID string) ([]TaskComment, error)
+	AddComment(ctx context.Context, workspaceID string, taskID string, input CommentCreateInput, userID string) (*TaskComment, error)
+	GetTaskComments(ctx context.Context, workspaceID string, taskID string, userID string) ([]TaskComment, error)
 }

@@ -21,7 +21,7 @@ type Project struct {
 }
 
 type ProjectRepository interface {
-	Create(ctx context.Context, project *Project) error
+	Create(ctx context.Context, workspaceID string, project *Project) error
 	GetByWorkspaceID(ctx context.Context, workspaceID string, limit, offset int) ([]Project, error)
 }
 

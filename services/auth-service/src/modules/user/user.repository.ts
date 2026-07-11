@@ -1,3 +1,5 @@
+import { v7 as uuidv7 } from 'uuid';
+
 import { IUserDocument, IUserRepository } from './user.interface.js';
 import { User } from './user.model.js';
 import { IUser } from './user.validation.js';
@@ -9,7 +11,8 @@ export class UserRepository implements IUserRepository {
   }
 
   create(data: IUser): Promise<IUserDocument> {
-    return User.create(data);
+    const id = uuidv7();
+    return User.create({ _id: id, ...data });
   }
 
   async findByEmail(email: string): Promise<IUserDocument | null> {

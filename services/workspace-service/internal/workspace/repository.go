@@ -17,21 +17,26 @@ func NewRepository(db *sqlx.DB) domain.WorkspaceRepository {
 	return &sqlRepository{db: db}
 }
 
-func (r *sqlRepository) Create(ctx context.Context, ws *domain.Workspace) error {
-	query := `INSERT INTO workspaces (name, slug, owner_id, description) VALUES ($1, $2, $3, $4) RETURNING id`
-	return r.db.QueryRowContext(ctx, query, ws.Name, ws.Slug, ws.OwnerID, ws.Description).Scan(&ws.ID)
+func (r *sqlRepository) Create(ctx context.Context, workspaceID string, ws *domain.Workspace) error {
+	query := `INSERT INTO workspaces (id, name, slug, owner_id, description) VALUES ($1, $2, $3, $4, $5) RETURNING id`
+	return r.db.QueryRowContext(ctx, query, ws.ID, ws.Name, ws.Slug, ws.OwnerID, ws.Description).Scan(&ws.ID)
 }
 
-func (r *sqlRepository) FindBySlug(ctx context.Context, slug string) (*domain.Workspace, error) {
+func (r *sqlRepository) FindBySlug(ctx context.Context, workspaceID string, slug string) (*domain.Workspace, error) {
 	var ws domain.Workspace
-	err := r.db.GetContext(ctx, &ws, "SELECT * FROM workspaces WHERE slug=$1", slug)
+	var err error
+	if workspaceID != "" {
+		err = r.db.GetContext(ctx, &ws, "SELECT id, name, slug, owner_id, description, created_at FROM workspaces WHERE slug=$1 AND id=$2", slug, workspaceID)
+	} else {
+		err = r.db.GetContext(ctx, &ws, "SELECT id, name, slug, owner_id, description, created_at FROM workspaces WHERE slug=$1", slug)
+	}
 	if err != nil {
 		return nil, err
 	}
 	return &ws, nil
 }
 
-func (r *sqlRepository) GetByOwnerID(ctx context.Context, ownerId string, limit, offset int) ([]domain.Workspace, error) {
+func (r *sqlRepository) GetByOwnerID(ctx context.Context, workspaceID string, ownerId string, limit, offset int) ([]domain.Workspace, error) {
 	var workspaces []domain.Workspace
 
 	query := `SELECT id, name, slug, owner_id, description, created_at from workspaces WHERE owner_id=$1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`
@@ -47,34 +52,40 @@ func (r *sqlRepository) GetByOwnerID(ctx context.Context, ownerId string, limit,
 	return workspaces, nil
 }
 
-func (r *sqlRepository) CreateInvite(ctx context.Context, invite *domain.WorkspaceInvitation) error {
+func (r *sqlRepository) CreateInvite(ctx context.Context, workspaceID string, invite *domain.WorkspaceInvitation) error {
 	query := `
-		INSERT INTO workspace_invitations (workspace_id, inviter_id, email, role, token, status, expires_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO workspace_invitations (id, workspace_id, inviter_id, email, role, token, status, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id, created_at`
 
 	return r.db.QueryRowContext(
 		ctx, query,
-		invite.WorkspaceID, invite.InviterID, invite.Email,
+		invite.ID, invite.WorkspaceID, invite.InviterID, invite.Email,
 		invite.Role, invite.Token, invite.Status, invite.ExpiresAt,
 	).Scan(&invite.ID, &invite.CreatedAt)
 }
 
-func (r *sqlRepository) FindInviteByToken(ctx context.Context, token string) (*domain.WorkspaceInvitation, error) {
+func (r *sqlRepository) FindInviteByToken(ctx context.Context, workspaceID string, token string) (*domain.WorkspaceInvitation, error) {
 	var invite domain.WorkspaceInvitation
-	query := `SELECT id, workspace_id, inviter_id, email, role, token, status, expires_at, created_at 
-	          FROM workspace_invitations WHERE token = $1`
-
-	err := r.db.GetContext(ctx, &invite, query, token)
+	var err error
+	if workspaceID != "" {
+		query := `SELECT id, workspace_id, inviter_id, email, role, token, status, expires_at, created_at 
+		          FROM workspace_invitations WHERE token = $1 AND workspace_id = $2`
+		err = r.db.GetContext(ctx, &invite, query, token, workspaceID)
+	} else {
+		query := `SELECT id, workspace_id, inviter_id, email, role, token, status, expires_at, created_at 
+		          FROM workspace_invitations WHERE token = $1`
+		err = r.db.GetContext(ctx, &invite, query, token)
+	}
 	if err != nil {
 		return nil, err
 	}
 	return &invite, nil
 }
 
-func (r *sqlRepository) UpdateInviteStatus(ctx context.Context, id string, status string) error {
-	query := `UPDATE workspace_invitations SET status = $1 WHERE id = $2`
-	_, err := r.db.ExecContext(ctx, query, status, id)
+func (r *sqlRepository) UpdateInviteStatus(ctx context.Context, workspaceID string, id string, status string) error {
+	query := `UPDATE workspace_invitations SET status = $1 WHERE id = $2 AND workspace_id = $3`
+	_, err := r.db.ExecContext(ctx, query, status, id, workspaceID)
 	return err
 }
 
@@ -85,15 +96,15 @@ func (r *sqlRepository) IsMember(ctx context.Context, workspaceID string, userID
 	return exists, err
 }
 
-func (r *sqlRepository) AddMember(ctx context.Context, member *domain.WorkspaceMember) error {
+func (r *sqlRepository) AddMember(ctx context.Context, workspaceID string, member *domain.WorkspaceMember) error {
 	query := `
-		INSERT INTO workspace_members (workspace_id, user_id, role) 
-		VALUES ($1, $2, $3)`
-	_, err := r.db.ExecContext(ctx, query, member.WorkspaceID, member.UserID, member.Role)
+		INSERT INTO workspace_members (id, workspace_id, user_id, role) 
+		VALUES ($1, $2, $3, $4)`
+	_, err := r.db.ExecContext(ctx, query, member.ID, member.WorkspaceID, member.UserID, member.Role)
 	return err
 }
 
-func (r *sqlRepository) GetByMemberID(ctx context.Context, userID string, limit, offset int) ([]domain.Workspace, error) {
+func (r *sqlRepository) GetByMemberID(ctx context.Context, workspaceID string, userID string, limit, offset int) ([]domain.Workspace, error) {
 	var workspaces []domain.Workspace
 
 	query := `
@@ -116,7 +127,7 @@ func (r *sqlRepository) GetByMemberID(ctx context.Context, userID string, limit,
 	return workspaces, nil
 }
 
-func (r *sqlRepository) FindByID(ctx context.Context, id string) (*domain.Workspace, error) {
+func (r *sqlRepository) FindByID(ctx context.Context, workspaceID string, id string) (*domain.Workspace, error) {
 	var ws domain.Workspace
 	query := `SELECT id, name, slug, owner_id, description, created_at FROM workspaces WHERE id = $1`
 

@@ -9,13 +9,13 @@ func RegisterRoutes(r *gin.RouterGroup, ctrl *Controller, authMid *middleware.Au
 	protected := r.Group("/", authMid.Protect())
 	{
 
-		projectTasks := protected.Group("/projects/:projectId/tasks")
+		projectTasks := protected.Group("/:id/projects/:projectId/tasks")
 		{
 			projectTasks.POST("", ctrl.CreateTask)
 			projectTasks.GET("", ctrl.ListTasks)
 		}
 
-		singleTask := protected.Group("/tasks/:id")
+		singleTask := protected.Group("/:id/tasks/:taskId")
 		{
 			singleTask.PUT("", ctrl.UpdateTask)
 			singleTask.PATCH("/status", ctrl.UpdateStatus)

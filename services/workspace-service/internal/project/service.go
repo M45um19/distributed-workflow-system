@@ -7,6 +7,7 @@ import (
 
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/domain"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/pkg/apperror"
+	"github.com/google/uuid"
 )
 
 type service struct {
@@ -22,7 +23,7 @@ func NewService(projectRepo domain.ProjectRepository, wsRepo domain.WorkspaceRep
 }
 
 func (s *service) CreateProject(ctx context.Context, workspaceID string, input domain.ProjectCreateInput, userID string) (*domain.Project, error) {
-	ws, err := s.wsRepo.FindByID(ctx, workspaceID)
+	ws, err := s.wsRepo.FindByID(ctx, workspaceID, workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +44,13 @@ func (s *service) CreateProject(ctx context.Context, workspaceID string, input d
 		}
 	}
 
+	projID, err := uuid.NewV7()
+	if err != nil {
+		return nil, apperror.InternalServer("failed to generate project ID: " + err.Error())
+	}
+
 	p := &domain.Project{
+		ID:          projID.String(),
 		WorkspaceID: workspaceID,
 		Name:        input.Name,
 		Description: input.Description,
@@ -51,14 +58,14 @@ func (s *service) CreateProject(ctx context.Context, workspaceID string, input d
 		CreatedBy:   userID,
 	}
 
-	if err := s.projectRepo.Create(ctx, p); err != nil {
+	if err := s.projectRepo.Create(ctx, workspaceID, p); err != nil {
 		return nil, err
 	}
 	return p, nil
 }
 
 func (s *service) GetProjectsByWorkspace(ctx context.Context, workspaceID string, userID string, limit, page int) ([]domain.Project, error) {
-	ws, err := s.wsRepo.FindByID(ctx, workspaceID)
+	ws, err := s.wsRepo.FindByID(ctx, workspaceID, workspaceID)
 	if err != nil {
 		return nil, err
 	}

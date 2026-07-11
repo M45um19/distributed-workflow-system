@@ -20,6 +20,12 @@ func NewController(s domain.TaskService) *Controller {
 }
 
 func (ctrl *Controller) CreateTask(c *gin.Context) {
+	workspaceID := c.Param("id")
+	if workspaceID == "" {
+		c.Error(apperror.BadRequest("Workspace ID is required"))
+		return
+	}
+
 	projectID := c.Param("projectId")
 	var input domain.TaskCreateInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -28,7 +34,7 @@ func (ctrl *Controller) CreateTask(c *gin.Context) {
 	}
 
 	userID := c.GetString("user_id")
-	result, err := ctrl.service.CreateTask(c.Request.Context(), projectID, input, userID)
+	result, err := ctrl.service.CreateTask(c.Request.Context(), workspaceID, projectID, input, userID)
 	if err != nil {
 		c.Error(err)
 		return
@@ -38,6 +44,12 @@ func (ctrl *Controller) CreateTask(c *gin.Context) {
 }
 
 func (ctrl *Controller) ListTasks(c *gin.Context) {
+	workspaceID := c.Param("id")
+	if workspaceID == "" {
+		c.Error(apperror.BadRequest("Workspace ID is required"))
+		return
+	}
+
 	projectID := c.Param("projectId")
 	userID := c.GetString("user_id")
 
@@ -72,7 +84,7 @@ func (ctrl *Controller) ListTasks(c *gin.Context) {
 		}
 	}
 
-	tasks, err := ctrl.service.GetTasksByProject(c.Request.Context(), projectID, userID, statuses, limit, page)
+	tasks, err := ctrl.service.GetTasksByProject(c.Request.Context(), workspaceID, projectID, userID, statuses, limit, page)
 	if err != nil {
 		c.Error(err)
 		return
@@ -82,7 +94,13 @@ func (ctrl *Controller) ListTasks(c *gin.Context) {
 }
 
 func (ctrl *Controller) UpdateTask(c *gin.Context) {
-	taskID := c.Param("id")
+	workspaceID := c.Param("id")
+	if workspaceID == "" {
+		c.Error(apperror.BadRequest("Workspace ID is required"))
+		return
+	}
+
+	taskID := c.Param("taskId")
 	var input domain.TaskUpdateInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.Error(apperror.BadRequest("Validation failed: " + err.Error()))
@@ -90,7 +108,7 @@ func (ctrl *Controller) UpdateTask(c *gin.Context) {
 	}
 
 	userID := c.GetString("user_id")
-	result, err := ctrl.service.UpdateFullTask(c.Request.Context(), taskID, input, userID)
+	result, err := ctrl.service.UpdateFullTask(c.Request.Context(), workspaceID, taskID, input, userID)
 	if err != nil {
 		c.Error(err)
 		return
@@ -100,7 +118,13 @@ func (ctrl *Controller) UpdateTask(c *gin.Context) {
 }
 
 func (ctrl *Controller) UpdateStatus(c *gin.Context) {
-	taskID := c.Param("id")
+	workspaceID := c.Param("id")
+	if workspaceID == "" {
+		c.Error(apperror.BadRequest("Workspace ID is required"))
+		return
+	}
+
+	taskID := c.Param("taskId")
 	var input domain.TaskStatusUpdateInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.Error(apperror.BadRequest("Validation failed: " + err.Error()))
@@ -108,7 +132,7 @@ func (ctrl *Controller) UpdateStatus(c *gin.Context) {
 	}
 
 	userID := c.GetString("user_id")
-	err := ctrl.service.UpdateTaskStatus(c.Request.Context(), taskID, input.Status, userID)
+	err := ctrl.service.UpdateTaskStatus(c.Request.Context(), workspaceID, taskID, input.Status, userID)
 	if err != nil {
 		c.Error(err)
 		return
@@ -118,7 +142,13 @@ func (ctrl *Controller) UpdateStatus(c *gin.Context) {
 }
 
 func (ctrl *Controller) AddComment(c *gin.Context) {
-	taskID := c.Param("id")
+	workspaceID := c.Param("id")
+	if workspaceID == "" {
+		c.Error(apperror.BadRequest("Workspace ID is required"))
+		return
+	}
+
+	taskID := c.Param("taskId")
 	var input domain.CommentCreateInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.Error(apperror.BadRequest("Validation failed: " + err.Error()))
@@ -126,7 +156,7 @@ func (ctrl *Controller) AddComment(c *gin.Context) {
 	}
 
 	userID := c.GetString("user_id")
-	result, err := ctrl.service.AddComment(c.Request.Context(), taskID, input, userID)
+	result, err := ctrl.service.AddComment(c.Request.Context(), workspaceID, taskID, input, userID)
 	if err != nil {
 		c.Error(err)
 		return
@@ -136,10 +166,16 @@ func (ctrl *Controller) AddComment(c *gin.Context) {
 }
 
 func (ctrl *Controller) GetComments(c *gin.Context) {
-	taskID := c.Param("id")
+	workspaceID := c.Param("id")
+	if workspaceID == "" {
+		c.Error(apperror.BadRequest("Workspace ID is required"))
+		return
+	}
+
+	taskID := c.Param("taskId")
 	userID := c.GetString("user_id")
 
-	comments, err := ctrl.service.GetTaskComments(c.Request.Context(), taskID, userID)
+	comments, err := ctrl.service.GetTaskComments(c.Request.Context(), workspaceID, taskID, userID)
 	if err != nil {
 		c.Error(err)
 		return

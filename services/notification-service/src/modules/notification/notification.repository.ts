@@ -1,3 +1,5 @@
+import { v7 as uuidv7 } from 'uuid';
+
 import { 
   IFetchNotificationsResponse, 
   INotification, 
@@ -8,7 +10,8 @@ import { NotificationModel } from './notification.model.js';
 export class NotificationRepository implements INotificationRepository {
 
   public async create(data: INotification): Promise<INotification> {
-    const created = await NotificationModel.create(data);
+    const id = uuidv7();
+    const created = await NotificationModel.create({ _id: id, ...data });
     return created.toJSON() as INotification;
   }
 

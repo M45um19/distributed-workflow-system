@@ -93,12 +93,12 @@ The core objective of the project is to provide a seamless collaborative experie
 | GET | `/api/v1/workspace/:id/members` | Get members | Yes | N/A |
 | POST | `/api/v1/workspace/:id/projects` | Create project | Yes | `{"name":"E-Commerce Microservices Backend","description":"This project handles the core ordering and payment workflow systems."}` |
 | GET | `/api/v1/workspace/:id/projects` | Get project | Yes | N/A |
-| POST | `/api/v1/workspace/projects/:id/tasks` | Create task | Yes | `{"title":"Implement Kafka Event Consumer","description":"Create a robust worker to consume user-registration events from the message queue.","priority":"HIGH","assignee_id":"6a107afad2ac1e59aba88b6f","deadline":"2026-06-15T18:30:00Z"}` |
-| GET | `/api/v1/workspace/projects/:id/tasks` | Get task | Yes | N/A |
-| PUT | `/api/v1/workspace/tasks/:id` | Update task | Yes | `{"title":"Implement Kafka Event Consumer 2","description":"Create a robust worker to consume user-registration events from the message queue. 2","priority":"HIGH","assignee_id":"6a107afad2ac1e59aba88b6f","deadline":"2026-06-15T18:30:00Z"}` |
-| PATCH | `/api/v1/workspace/tasks/:id/status` | Update task status | Yes | `{"status":"DONE"}` |
-| POST | `/api/v1/workspace/tasks/:id/comments` | Add comment | Yes | `{"content":"DONE"}` |
-| GET | `/api/v1/workspace/tasks/:id/comments` | Fetch comments | Yes | N/A |
+| POST | `/api/v1/workspace/:id/projects/:projectId/tasks` | Create task | Yes | `{"title":"Implement Kafka Event Consumer","description":"Create a robust worker to consume user-registration events from the message queue.","priority":"HIGH","assignee_id":"6a107afad2ac1e59aba88b6f","deadline":"2026-06-15T18:30:00Z"}` |
+| GET | `/api/v1/workspace/:id/projects/:projectId/tasks` | Get task | Yes | N/A |
+| PUT | `/api/v1/workspace/:id/tasks/:taskId` | Update task | Yes | `{"title":"Implement Kafka Event Consumer 2","description":"Create a robust worker to consume user-registration events from the message queue. 2","priority":"HIGH","assignee_id":"6a107afad2ac1e59aba88b6f","deadline":"2026-06-15T18:30:00Z"}` |
+| PATCH | `/api/v1/workspace/:id/tasks/:taskId/status` | Update task status | Yes | `{"status":"DONE"}` |
+| POST | `/api/v1/workspace/:id/tasks/:taskId/comments` | Add comment | Yes | `{"content":"DONE"}` |
+| GET | `/api/v1/workspace/:id/tasks/:taskId/comments` | Fetch comments | Yes | N/A |
 
 
 #### Events Produced

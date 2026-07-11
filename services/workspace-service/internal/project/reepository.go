@@ -16,13 +16,13 @@ func NewRepository(db *sqlx.DB) domain.ProjectRepository {
 	return &sqlRepository{db: db}
 }
 
-func (r *sqlRepository) Create(ctx context.Context, p *domain.Project) error {
+func (r *sqlRepository) Create(ctx context.Context, workspaceID string, p *domain.Project) error {
 	log.Println(p)
 	query := `
-		INSERT INTO projects (workspace_id, name, description, status, created_by) 
-		VALUES ($1, $2, $3, $4, $5) 
+		INSERT INTO projects (id, workspace_id, name, description, status, created_by) 
+		VALUES ($1, $2, $3, $4, $5, $6) 
 		RETURNING id, status, created_at`
-	return r.db.QueryRowContext(ctx, query, p.WorkspaceID, p.Name, p.Description, p.Status, p.CreatedBy).Scan(&p.ID, &p.Status, &p.CreatedAt)
+	return r.db.QueryRowContext(ctx, query, p.ID, p.WorkspaceID, p.Name, p.Description, p.Status, p.CreatedBy).Scan(&p.ID, &p.Status, &p.CreatedAt)
 }
 
 func (r *sqlRepository) GetByWorkspaceID(ctx context.Context, workspaceID string, limit, offset int) ([]domain.Project, error) {
