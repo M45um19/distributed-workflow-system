@@ -38,19 +38,25 @@ func NewService(wsRepo domain.WorkspaceRepository, userRepo domain.UserRepositor
 }
 
 func (s *service) CreateWorkspace(ctx context.Context, input domain.WorkspaceCreateInput, ownerID string) (*domain.Workspace, error) {
-	exists, _ := s.wsRepo.FindBySlug(ctx, input.Slug)
+	exists, _ := s.wsRepo.FindBySlug(ctx, "", input.Slug)
 	if exists != nil {
 		return nil, apperror.BadRequest("workspace with this slug already exists")
 	}
 
+	wsID, err := uuid.NewV7()
+	if err != nil {
+		return nil, apperror.InternalServer("failed to generate workspace ID: " + err.Error())
+	}
+
 	ws := &domain.Workspace{
+		ID:          wsID.String(),
 		Name:        input.Name,
 		Slug:        input.Slug,
 		Description: input.Description,
 		OwnerID:     ownerID,
 	}
 
-	if err := s.wsRepo.Create(ctx, ws); err != nil {
+	if err := s.wsRepo.Create(ctx, ws.ID, ws); err != nil {
 		return nil, err
 	}
 	return ws, nil
@@ -58,14 +64,20 @@ func (s *service) CreateWorkspace(ctx context.Context, input domain.WorkspaceCre
 
 func (s *service) GetWorkspacesByOwner(ctx context.Context, ownerId string, limit, page int) ([]domain.Workspace, error) {
 	offset := (page - 1) * limit
-	return s.wsRepo.GetByOwnerID(ctx, ownerId, limit, offset)
+	return s.wsRepo.GetByOwnerID(ctx, "", ownerId, limit, offset)
 }
 
 func (s *service) InviteUser(ctx context.Context, input domain.WorkspaceInviteRequest) (*domain.WorkspaceInviteResponse, error) {
 
 	input.Token = uuid.New().String()
 
+	inviteID, err := uuid.NewV7()
+	if err != nil {
+		return nil, apperror.InternalServer("failed to generate invitation ID: " + err.Error())
+	}
+
 	invite := &domain.WorkspaceInvitation{
+		ID:          inviteID.String(),
 		WorkspaceID: input.WorkspaceID,
 		InviterID:   input.InviterID,
 		Email:       input.Email,
@@ -75,7 +87,7 @@ func (s *service) InviteUser(ctx context.Context, input domain.WorkspaceInviteRe
 		ExpiresAt:   time.Now().Add(time.Hour * 24 * 14),
 	}
 
-	if err := s.wsRepo.CreateInvite(ctx, invite); err != nil {
+	if err := s.wsRepo.CreateInvite(ctx, invite.WorkspaceID, invite); err != nil {
 		log.Printf("Failed to save invitation to DB: %v", err)
 		return nil, apperror.InternalServer("Could not process invitation")
 	}
@@ -116,7 +128,7 @@ func (s *service) InviteUser(ctx context.Context, input domain.WorkspaceInviteRe
 }
 
 func (s *service) AcceptInvitation(ctx context.Context, token string, loggedInUserID string) error {
-	invite, err := s.wsRepo.FindInviteByToken(ctx, token)
+	invite, err := s.wsRepo.FindInviteByToken(ctx, "", token)
 	if err != nil {
 		return apperror.NotFound("Invitation link is invalid or does not exist")
 	}
@@ -126,7 +138,7 @@ func (s *service) AcceptInvitation(ctx context.Context, token string, loggedInUs
 	}
 
 	if time.Now().After(invite.ExpiresAt) {
-		_ = s.wsRepo.UpdateInviteStatus(ctx, invite.ID, "EXPIRED")
+		_ = s.wsRepo.UpdateInviteStatus(ctx, invite.WorkspaceID, invite.ID, "EXPIRED")
 		return apperror.BadRequest("This invitation link has expired")
 	}
 
@@ -141,26 +153,32 @@ func (s *service) AcceptInvitation(ctx context.Context, token string, loggedInUs
 
 	alreadyMember, err := s.wsRepo.IsMember(ctx, invite.WorkspaceID, loggedInUserID)
 	if err == nil && alreadyMember {
-		_ = s.wsRepo.UpdateInviteStatus(ctx, invite.ID, "ACCEPTED")
+		_ = s.wsRepo.UpdateInviteStatus(ctx, invite.WorkspaceID, invite.ID, "ACCEPTED")
 		return apperror.BadRequest("You are already a member of this workspace")
 	}
 
+	memberID, err := uuid.NewV7()
+	if err != nil {
+		return apperror.InternalServer("failed to generate member ID: " + err.Error())
+	}
+
 	member := &domain.WorkspaceMember{
+		ID:          memberID.String(),
 		WorkspaceID: invite.WorkspaceID,
 		UserID:      loggedInUserID,
 		Role:        invite.Role,
 	}
 
-	if err := s.wsRepo.AddMember(ctx, member); err != nil {
+	if err := s.wsRepo.AddMember(ctx, invite.WorkspaceID, member); err != nil {
 		log.Printf("Failed to add member to workspace: %v", err)
 		return apperror.InternalServer("Could not accept invitation")
 	}
 
-	if err := s.wsRepo.UpdateInviteStatus(ctx, invite.ID, "ACCEPTED"); err != nil {
+	if err := s.wsRepo.UpdateInviteStatus(ctx, invite.WorkspaceID, invite.ID, "ACCEPTED"); err != nil {
 		log.Printf("Failed to update invite status: %v", err)
 	}
 
-	ws, wsErr := s.wsRepo.FindByID(ctx, invite.WorkspaceID)
+	ws, wsErr := s.wsRepo.FindByID(ctx, invite.WorkspaceID, invite.WorkspaceID)
 	if wsErr == nil && ws != nil {
 		if ws.OwnerID != loggedInUserID {
 			ownerNotification := domain.NotificationEventPayload{
@@ -188,11 +206,11 @@ func (s *service) AcceptInvitation(ctx context.Context, token string, loggedInUs
 
 func (s *service) GetWorkspacesByMember(ctx context.Context, userID string, limit, page int) ([]domain.Workspace, error) {
 	offset := (page - 1) * limit
-	return s.wsRepo.GetByMemberID(ctx, userID, limit, offset)
+	return s.wsRepo.GetByMemberID(ctx, "", userID, limit, offset)
 }
 
 func (s *service) GetWorkspaceMembers(ctx context.Context, workspaceID string, userID string) ([]domain.WorkspaceMemberResponse, error) {
-	ws, err := s.wsRepo.FindByID(ctx, workspaceID)
+	ws, err := s.wsRepo.FindByID(ctx, workspaceID, workspaceID)
 	if err != nil {
 		return nil, err
 	}

@@ -1,8 +1,13 @@
 import mongoose from 'mongoose';
 
+import { IUserDocument } from './user.interface.js';
 import { IUser, UserRole } from './user.validation.js';
 
-const userSchema = new mongoose.Schema<IUser>({
+const userSchema = new mongoose.Schema<IUserDocument>({
+  _id: {
+    type: String,
+    required: true,
+  },
   full_name: {
     type: String,
     required: true,
@@ -54,5 +59,5 @@ const userSchema = new mongoose.Schema<IUser>({
 });
 
 
-export const User = mongoose.model<IUser>('User', userSchema);
+export const User = mongoose.model<IUserDocument>('User', userSchema);
  

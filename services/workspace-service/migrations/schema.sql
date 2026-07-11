@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 
 CREATE TABLE IF NOT EXISTS workspaces (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     slug VARCHAR(255) UNIQUE NOT NULL,
     owner_id VARCHAR(255) NOT NULL,
@@ -26,7 +26,7 @@ CREATE INDEX IF NOT EXISTS idx_workspaces_slug ON workspaces(slug);
 
 
 CREATE TABLE IF NOT EXISTS workspace_invitations (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID,
     workspace_id UUID NOT NULL,
     inviter_id VARCHAR(255) NOT NULL,
     email VARCHAR(255) NOT NULL,
@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS workspace_invitations (
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 
+    PRIMARY KEY (id, workspace_id),
     CONSTRAINT fk_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
     CONSTRAINT fk_inviter FOREIGN KEY (inviter_id) REFERENCES users(id) ON DELETE CASCADE,
     
@@ -49,12 +50,13 @@ CREATE INDEX IF NOT EXISTS idx_workspace_invitations_workspace_id ON workspace_i
 
 
 CREATE TABLE IF NOT EXISTS workspace_members (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID,
     workspace_id UUID NOT NULL,
     user_id VARCHAR(255) NOT NULL,
     role VARCHAR(50) NOT NULL DEFAULT 'MEMBER',
     joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 
+    PRIMARY KEY (id, workspace_id),
     CONSTRAINT fk_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
     CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     
@@ -67,7 +69,7 @@ CREATE INDEX IF NOT EXISTS idx_workspace_members_workspace_id ON workspace_membe
 
 
 CREATE TABLE IF NOT EXISTS projects (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID,
     workspace_id UUID NOT NULL,
     name VARCHAR(255) NOT NULL,
     description TEXT,
@@ -75,6 +77,7 @@ CREATE TABLE IF NOT EXISTS projects (
     created_by VARCHAR(255) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 
+    PRIMARY KEY (id, workspace_id),
     CONSTRAINT fk_project_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
     CONSTRAINT fk_project_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
     CONSTRAINT check_project_status CHECK (status IN ('ACTIVE', 'ARCHIVED'))
@@ -85,7 +88,8 @@ CREATE INDEX IF NOT EXISTS idx_projects_created_by ON projects(created_by);
 
 
 CREATE TABLE IF NOT EXISTS tasks (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID,
+    workspace_id UUID NOT NULL,
     project_id UUID NOT NULL,
     title VARCHAR(255) NOT NULL,
     description TEXT,
@@ -95,23 +99,28 @@ CREATE TABLE IF NOT EXISTS tasks (
     deadline TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_task_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    PRIMARY KEY (id, workspace_id),
+    CONSTRAINT fk_task_project FOREIGN KEY (project_id, workspace_id) REFERENCES projects(id, workspace_id) ON DELETE CASCADE,
     CONSTRAINT fk_task_assignee FOREIGN KEY (assignee_id) REFERENCES users(id) ON DELETE SET NULL,
     CONSTRAINT check_task_status CHECK (status IN ('TODO', 'IN_PROGRESS', 'REVIEW', 'DONE')),
     CONSTRAINT check_task_priority CHECK (priority IN ('LOW', 'MEDIUM', 'HIGH', 'URGENT'))
 );
 
 CREATE TABLE IF NOT EXISTS task_comments (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID,
+    workspace_id UUID NOT NULL,
     task_id UUID NOT NULL,
     user_id VARCHAR(255) NOT NULL,
     content TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_comment_task FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+    PRIMARY KEY (id, workspace_id),
+    CONSTRAINT fk_comment_task FOREIGN KEY (task_id, workspace_id) REFERENCES tasks(id, workspace_id) ON DELETE CASCADE,
     CONSTRAINT fk_comment_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_assignee_id ON tasks(assignee_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_workspace_id ON tasks(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_task_comments_task_id ON task_comments(task_id);
+CREATE INDEX IF NOT EXISTS idx_task_comments_workspace_id ON task_comments(workspace_id);
