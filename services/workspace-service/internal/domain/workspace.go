@@ -70,8 +70,8 @@ type WorkspaceMember struct {
 type WorkspaceRepository interface {
 	Create(ctx context.Context, workspaceID string, ws *Workspace) error
 	FindBySlug(ctx context.Context, workspaceID string, slug string) (*Workspace, error)
-	GetByOwnerID(ctx context.Context, workspaceID string, ownerId string, limit, offset int) ([]Workspace, error)
-	GetByMemberID(ctx context.Context, workspaceID string, userID string, limit, offset int) ([]Workspace, error)
+	GetByOwnerID(ctx context.Context, workspaceID string, ownerId string, limit int, cursor string) ([]Workspace, error)
+	GetByMemberID(ctx context.Context, workspaceID string, userID string, limit int, cursor string) ([]Workspace, error)
 
 	CreateInvite(ctx context.Context, workspaceID string, invite *WorkspaceInvitation) error
 	FindInviteByToken(ctx context.Context, workspaceID string, token string) (*WorkspaceInvitation, error)
@@ -87,9 +87,33 @@ type WorkspaceRepository interface {
 
 type WorkspaceService interface {
 	CreateWorkspace(ctx context.Context, input WorkspaceCreateInput, ownerID string) (*Workspace, error)
-	GetWorkspacesByOwner(ctx context.Context, ownerId string, limit, page int) ([]Workspace, error)
-	GetWorkspacesByMember(ctx context.Context, userID string, limit, page int) ([]Workspace, error)
+	GetWorkspacesByOwner(ctx context.Context, ownerId string, limit int, cursor string) ([]Workspace, error)
+	GetWorkspacesByMember(ctx context.Context, userID string, limit int, cursor string) ([]Workspace, error)
 	InviteUser(ctx context.Context, input WorkspaceInviteRequest) (*WorkspaceInviteResponse, error)
 	AcceptInvitation(ctx context.Context, token string, loggedInUserID string) error
 	GetWorkspaceMembers(ctx context.Context, workspaceID string, userID string) ([]WorkspaceMemberResponse, error)
 }
+
+type WorkspaceCache interface {
+	AddOwnedWorkspaceID(ctx context.Context, userID string, workspaceID string) error
+	AddJoinedWorkspaceID(ctx context.Context, userID string, workspaceID string) error
+	SetWorkspaceMeta(ctx context.Context, ws *Workspace) error
+	GetWorkspaceMeta(ctx context.Context, workspaceID string) (*Workspace, error)
+	GetWorkspaceMetas(ctx context.Context, workspaceIDs []string) ([]Workspace, []string, error)
+	GetOwnedWorkspaceIDs(ctx context.Context, userID string, limit int, cursor string) ([]string, bool, error)
+	GetJoinedWorkspaceIDs(ctx context.Context, userID string, limit int, cursor string) ([]string, bool, error)
+	SetOwnedWorkspaceIDs(ctx context.Context, userID string, ids []string) error
+	SetJoinedWorkspaceIDs(ctx context.Context, userID string, ids []string) error
+	InvalidateOwnedWorkspaces(ctx context.Context, userID string) error
+	InvalidateJoinedWorkspaces(ctx context.Context, userID string) error
+
+	GetMembers(ctx context.Context, workspaceID string) ([]WorkspaceMemberResponse, bool, error)
+	SetMembers(ctx context.Context, workspaceID string, members []WorkspaceMemberResponse) error
+	AddMember(ctx context.Context, workspaceID string, member WorkspaceMemberResponse) error
+	InvalidateMembers(ctx context.Context, workspaceID string) error
+
+	GetMemberRole(ctx context.Context, workspaceID string, userID string) (string, bool, error)
+	SetMemberRole(ctx context.Context, workspaceID string, userID string, role string) error
+	InvalidateMemberRole(ctx context.Context, workspaceID string, userID string) error
+}
+

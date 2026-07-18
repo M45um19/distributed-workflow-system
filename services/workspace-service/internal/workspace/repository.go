@@ -36,11 +36,18 @@ func (r *sqlRepository) FindBySlug(ctx context.Context, workspaceID string, slug
 	return &ws, nil
 }
 
-func (r *sqlRepository) GetByOwnerID(ctx context.Context, workspaceID string, ownerId string, limit, offset int) ([]domain.Workspace, error) {
+func (r *sqlRepository) GetByOwnerID(ctx context.Context, workspaceID string, ownerId string, limit int, cursor string) ([]domain.Workspace, error) {
 	var workspaces []domain.Workspace
+	var err error
 
-	query := `SELECT id, name, slug, owner_id, description, created_at from workspaces WHERE owner_id=$1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`
-	err := r.db.SelectContext(ctx, &workspaces, query, ownerId, limit, offset)
+	if cursor != "" {
+		query := `SELECT id, name, slug, owner_id, description, created_at from workspaces WHERE owner_id=$1 AND id < $2 ORDER BY id DESC LIMIT $3`
+		err = r.db.SelectContext(ctx, &workspaces, query, ownerId, cursor, limit)
+	} else {
+		query := `SELECT id, name, slug, owner_id, description, created_at from workspaces WHERE owner_id=$1 ORDER BY id DESC LIMIT $2`
+		err = r.db.SelectContext(ctx, &workspaces, query, ownerId, limit)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -104,18 +111,30 @@ func (r *sqlRepository) AddMember(ctx context.Context, workspaceID string, membe
 	return err
 }
 
-func (r *sqlRepository) GetByMemberID(ctx context.Context, workspaceID string, userID string, limit, offset int) ([]domain.Workspace, error) {
+func (r *sqlRepository) GetByMemberID(ctx context.Context, workspaceID string, userID string, limit int, cursor string) ([]domain.Workspace, error) {
 	var workspaces []domain.Workspace
+	var err error
 
-	query := `
-        SELECT w.id, w.name, w.slug, w.owner_id, w.description, w.created_at 
-        FROM workspaces w
-        INNER JOIN workspace_members wm ON w.id = wm.workspace_id
-        WHERE wm.user_id = $1
-        ORDER BY w.created_at DESC
-        LIMIT $2 OFFSET $3`
+	if cursor != "" {
+		query := `
+			SELECT w.id, w.name, w.slug, w.owner_id, w.description, w.created_at 
+			FROM workspaces w
+			INNER JOIN workspace_members wm ON w.id = wm.workspace_id
+			WHERE wm.user_id = $1 AND w.id < $2
+			ORDER BY w.id DESC
+			LIMIT $3`
+		err = r.db.SelectContext(ctx, &workspaces, query, userID, cursor, limit)
+	} else {
+		query := `
+			SELECT w.id, w.name, w.slug, w.owner_id, w.description, w.created_at 
+			FROM workspaces w
+			INNER JOIN workspace_members wm ON w.id = wm.workspace_id
+			WHERE wm.user_id = $1
+			ORDER BY w.id DESC
+			LIMIT $2`
+		err = r.db.SelectContext(ctx, &workspaces, query, userID, limit)
+	}
 
-	err := r.db.SelectContext(ctx, &workspaces, query, userID, limit, offset)
 	if err != nil {
 		return nil, err
 	}

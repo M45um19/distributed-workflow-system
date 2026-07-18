@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 	"time"
 
@@ -22,9 +23,17 @@ type service struct {
 	temporalClient          client.Client
 	notificationkafkaWriter *kafka.Writer
 	frontendURL             string
+	cache                   domain.WorkspaceCache
 }
 
-func NewService(wsRepo domain.WorkspaceRepository, userRepo domain.UserRepository, tempClient client.Client, notificationkafkaWriter *kafka.Writer, frontendURL string) domain.WorkspaceService {
+func NewService(
+	wsRepo domain.WorkspaceRepository,
+	userRepo domain.UserRepository,
+	tempClient client.Client,
+	notificationkafkaWriter *kafka.Writer,
+	frontendURL string,
+	cache domain.WorkspaceCache,
+) domain.WorkspaceService {
 	if !strings.HasPrefix(frontendURL, "http://") && !strings.HasPrefix(frontendURL, "https://") {
 		frontendURL = "http://" + frontendURL
 	}
@@ -34,6 +43,7 @@ func NewService(wsRepo domain.WorkspaceRepository, userRepo domain.UserRepositor
 		temporalClient:          tempClient,
 		notificationkafkaWriter: notificationkafkaWriter,
 		frontendURL:             frontendURL,
+		cache:                   cache,
 	}
 }
 
@@ -59,12 +69,99 @@ func (s *service) CreateWorkspace(ctx context.Context, input domain.WorkspaceCre
 	if err := s.wsRepo.Create(ctx, ws.ID, ws); err != nil {
 		return nil, err
 	}
+
+	// Update Cache
+	if cacheErr := s.cache.SetWorkspaceMeta(ctx, ws); cacheErr != nil {
+		log.Printf("[Cache Error] CreateWorkspace SetWorkspaceMeta failed: %v", cacheErr)
+	}
+	if cacheErr := s.cache.AddOwnedWorkspaceID(ctx, ownerID, ws.ID); cacheErr != nil {
+		log.Printf("[Cache Error] CreateWorkspace AddOwnedWorkspaceID failed: %v", cacheErr)
+	}
+
 	return ws, nil
 }
 
-func (s *service) GetWorkspacesByOwner(ctx context.Context, ownerId string, limit, page int) ([]domain.Workspace, error) {
-	offset := (page - 1) * limit
-	return s.wsRepo.GetByOwnerID(ctx, "", ownerId, limit, offset)
+func sortWorkspacesDesc(workspaces []domain.Workspace) {
+	sort.Slice(workspaces, func(i, j int) bool {
+		return workspaces[i].ID > workspaces[j].ID
+	})
+}
+
+func paginateWorkspaces(workspaces []domain.Workspace, cursor string, limit int) []domain.Workspace {
+	var filtered []domain.Workspace
+	for _, ws := range workspaces {
+		if cursor == "" || ws.ID < cursor {
+			filtered = append(filtered, ws)
+		}
+	}
+
+	if len(filtered) > limit {
+		return filtered[:limit]
+	}
+	return filtered
+}
+
+func (s *service) GetWorkspacesByOwner(ctx context.Context, ownerId string, limit int, cursor string) ([]domain.Workspace, error) {
+	ids, exists, err := s.cache.GetOwnedWorkspaceIDs(ctx, ownerId, limit, cursor)
+	if err != nil {
+		log.Printf("[Cache Error] GetOwnedWorkspaceIDs failed: %v", err)
+	}
+
+	var workspaces []domain.Workspace
+
+	if !exists {
+		// Cache Miss: Query all workspaces from DB to populate the cache
+		allDBWorkspaces, err := s.wsRepo.GetByOwnerID(ctx, "", ownerId, 10000, "")
+		if err != nil {
+			return nil, err
+		}
+
+		var dbIDs []string
+		for _, ws := range allDBWorkspaces {
+			dbIDs = append(dbIDs, ws.ID)
+			if cacheErr := s.cache.SetWorkspaceMeta(ctx, &ws); cacheErr != nil {
+				log.Printf("[Cache Error] SetWorkspaceMeta failed: %v", cacheErr)
+			}
+		}
+
+		if cacheErr := s.cache.SetOwnedWorkspaceIDs(ctx, ownerId, dbIDs); cacheErr != nil {
+			log.Printf("[Cache Error] SetOwnedWorkspaceIDs failed: %v", cacheErr)
+		}
+
+		workspaces = allDBWorkspaces
+		sortWorkspacesDesc(workspaces)
+		return paginateWorkspaces(workspaces, cursor, limit), nil
+	}
+
+	if len(ids) == 0 {
+		return []domain.Workspace{}, nil
+	}
+
+	// Cache Hit: fetch metadata for only the returned paginated IDs!
+	cachedMetas, missingIDs, err := s.cache.GetWorkspaceMetas(ctx, ids)
+	if err != nil {
+		log.Printf("[Cache Error] GetWorkspaceMetas failed: %v", err)
+	}
+
+	workspaces = cachedMetas
+
+	if len(missingIDs) > 0 {
+		for _, id := range missingIDs {
+			ws, err := s.wsRepo.FindByID(ctx, id, id)
+			if err != nil {
+				return nil, err
+			}
+			if ws != nil {
+				workspaces = append(workspaces, *ws)
+				if cacheErr := s.cache.SetWorkspaceMeta(ctx, ws); cacheErr != nil {
+					log.Printf("[Cache Error] SetWorkspaceMeta failed: %v", cacheErr)
+				}
+			}
+		}
+	}
+
+	sortWorkspacesDesc(workspaces)
+	return workspaces, nil
 }
 
 func (s *service) InviteUser(ctx context.Context, input domain.WorkspaceInviteRequest) (*domain.WorkspaceInviteResponse, error) {
@@ -178,6 +275,25 @@ func (s *service) AcceptInvitation(ctx context.Context, token string, loggedInUs
 		log.Printf("Failed to update invite status: %v", err)
 	}
 
+	// Invalidate/Add to cache
+	if cacheErr := s.cache.AddJoinedWorkspaceID(ctx, loggedInUserID, invite.WorkspaceID); cacheErr != nil {
+		log.Printf("[Cache Error] AcceptInvitation AddJoinedWorkspaceID failed: %v", cacheErr)
+	}
+
+	memberRes := domain.WorkspaceMemberResponse{
+		UserID:   loggedInUserID,
+		FullName: currentUser.FullName,
+		Email:    currentUser.Email,
+		Role:     invite.Role,
+		JoinedAt: time.Now(),
+	}
+	if cacheErr := s.cache.AddMember(ctx, invite.WorkspaceID, memberRes); cacheErr != nil {
+		log.Printf("[Cache Error] AcceptInvitation AddMember failed: %v", cacheErr)
+	}
+	if cacheErr := s.cache.SetMemberRole(ctx, invite.WorkspaceID, loggedInUserID, invite.Role); cacheErr != nil {
+		log.Printf("[Cache Error] AcceptInvitation SetMemberRole failed: %v", cacheErr)
+	}
+
 	ws, wsErr := s.wsRepo.FindByID(ctx, invite.WorkspaceID, invite.WorkspaceID)
 	if wsErr == nil && ws != nil {
 		if ws.OwnerID != loggedInUserID {
@@ -204,9 +320,67 @@ func (s *service) AcceptInvitation(ctx context.Context, token string, loggedInUs
 	return nil
 }
 
-func (s *service) GetWorkspacesByMember(ctx context.Context, userID string, limit, page int) ([]domain.Workspace, error) {
-	offset := (page - 1) * limit
-	return s.wsRepo.GetByMemberID(ctx, "", userID, limit, offset)
+func (s *service) GetWorkspacesByMember(ctx context.Context, userID string, limit int, cursor string) ([]domain.Workspace, error) {
+	ids, exists, err := s.cache.GetJoinedWorkspaceIDs(ctx, userID, limit, cursor)
+	if err != nil {
+		log.Printf("[Cache Error] GetJoinedWorkspaceIDs failed: %v", err)
+	}
+
+	var workspaces []domain.Workspace
+
+	if !exists {
+		// Cache Miss: Query all workspaces from DB to populate the cache
+		allDBWorkspaces, err := s.wsRepo.GetByMemberID(ctx, "", userID, 10000, "")
+		if err != nil {
+			return nil, err
+		}
+
+		var dbIDs []string
+		for _, ws := range allDBWorkspaces {
+			dbIDs = append(dbIDs, ws.ID)
+			if cacheErr := s.cache.SetWorkspaceMeta(ctx, &ws); cacheErr != nil {
+				log.Printf("[Cache Error] SetWorkspaceMeta failed: %v", cacheErr)
+			}
+		}
+
+		if cacheErr := s.cache.SetJoinedWorkspaceIDs(ctx, userID, dbIDs); cacheErr != nil {
+			log.Printf("[Cache Error] SetJoinedWorkspaceIDs failed: %v", cacheErr)
+		}
+
+		workspaces = allDBWorkspaces
+		sortWorkspacesDesc(workspaces)
+		return paginateWorkspaces(workspaces, cursor, limit), nil
+	}
+
+	if len(ids) == 0 {
+		return []domain.Workspace{}, nil
+	}
+
+	// Cache Hit: fetch metadata for only the returned paginated IDs!
+	cachedMetas, missingIDs, err := s.cache.GetWorkspaceMetas(ctx, ids)
+	if err != nil {
+		log.Printf("[Cache Error] GetWorkspaceMetas failed: %v", err)
+	}
+
+	workspaces = cachedMetas
+
+	if len(missingIDs) > 0 {
+		for _, id := range missingIDs {
+			ws, err := s.wsRepo.FindByID(ctx, id, id)
+			if err != nil {
+				return nil, err
+			}
+			if ws != nil {
+				workspaces = append(workspaces, *ws)
+				if cacheErr := s.cache.SetWorkspaceMeta(ctx, ws); cacheErr != nil {
+					log.Printf("[Cache Error] SetWorkspaceMeta failed: %v", cacheErr)
+				}
+			}
+		}
+	}
+
+	sortWorkspacesDesc(workspaces)
+	return workspaces, nil
 }
 
 func (s *service) GetWorkspaceMembers(ctx context.Context, workspaceID string, userID string) ([]domain.WorkspaceMemberResponse, error) {
@@ -218,19 +392,52 @@ func (s *service) GetWorkspaceMembers(ctx context.Context, workspaceID string, u
 		return nil, apperror.NotFound("Workspace not found")
 	}
 
+	var role string
+	var cached bool
 	if ws.OwnerID == userID {
-		return s.wsRepo.GetMembers(ctx, workspaceID)
+		role = "OWNER"
+	} else {
+		role, cached, err = s.cache.GetMemberRole(ctx, workspaceID, userID)
+		if err != nil {
+			log.Printf("[Cache Error] GetMemberRole failed: %v", err)
+		}
+		if !cached {
+			role, err = s.wsRepo.GetMemberRole(ctx, workspaceID, userID)
+			if err != nil {
+				// User is not a member or DB error
+			} else {
+				if cacheErr := s.cache.SetMemberRole(ctx, workspaceID, userID, role); cacheErr != nil {
+					log.Printf("[Cache Error] SetMemberRole failed: %v", cacheErr)
+				}
+			}
+		}
 	}
 
-	isMember, err := s.wsRepo.IsMember(ctx, workspaceID, userID)
-	if err != nil {
-		return nil, err
-	}
-	if !isMember {
+	if role == "" {
 		return nil, apperror.Forbidden("You do not have permission to view this workspace's members")
 	}
 
-	return s.wsRepo.GetMembers(ctx, workspaceID)
+	members, exists, err := s.cache.GetMembers(ctx, workspaceID)
+	if err != nil {
+		log.Printf("[Cache Error] GetMembers failed: %v", err)
+	}
+
+	if !exists {
+		members, err = s.wsRepo.GetMembers(ctx, workspaceID)
+		if err != nil {
+			return nil, err
+		}
+
+		if cacheErr := s.cache.SetMembers(ctx, workspaceID, members); cacheErr != nil {
+			log.Printf("[Cache Error] SetMembers failed: %v", cacheErr)
+		}
+	} else {
+		sort.Slice(members, func(i, j int) bool {
+			return members[i].JoinedAt.Before(members[j].JoinedAt)
+		})
+	}
+
+	return members, nil
 }
 
 func (s *service) sendNotification(ctx context.Context, payload domain.NotificationEventPayload, key string) {

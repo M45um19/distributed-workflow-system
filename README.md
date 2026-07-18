@@ -51,7 +51,7 @@ The core objective of the project is to provide a seamless collaborative experie
 
 ## Microservices
 
-### 1. Auth & Workspace Service (Node.js)
+### 1. Auth Service (Node.js)
 
 **Responsibility:** Authentication, session management
 **Database:** MongoDB + Redis  
@@ -86,8 +86,8 @@ The core objective of the project is to provide a seamless collaborative experie
 | Method | Endpoint | Description | Auth | Sample Input |
 | :--- | :--- | :--- | :--- | :--- |
 | POST | `/api/v1/workspace` | Create workspace | Yes | `{"name":"test","slug":"test","description":"test"}` |
-| GET | `/api/v1/workspace/owned` | List workspaces (Owner) | Yes | N/A |
-| GET | `/api/v1/workspace/joined` | List workspaces (Member) | Yes | N/A |
+| GET | `/api/v1/workspace/owned?limit=10&cursor=...` | List workspaces (Owner) | Yes | N/A |
+| GET | `/api/v1/workspace/joined?limit=10&cursor=...` | List workspaces (Member) | Yes | N/A |
 | POST | `/api/v1/workspace/:id/invites` | Invite member | Yes | `{"email":"test@test.com","role":"ADMIN"}` |
 | POST | `/api/v1/workspace/invites/accept` | Accept invite | Yes | `{"token":"6fa7dfcd-bfa2-4e13-bdb4-6e7fcb8ee8b5"}` |
 | GET | `/api/v1/workspace/:id/members` | Get members | Yes | N/A |
@@ -103,6 +103,24 @@ The core objective of the project is to provide a seamless collaborative experie
 
 #### Events Produced
 - `send-notification`: Triggered when need to send a notification.
+
+#### Redis Caching Architecture
+
+##### Why use Redis in workspace:
+- **High-Frequency Read Optimization**: Workspace owned/joined listings and membership checks are heavily read-intensive. Redis shields the Postgres database from high query volumes.
+- **Lexicographical Pagination**: Allows paginating workspaces chronologically descending directly inside Redis without transferring the entire set of IDs to the Go application memory.
+- **Fast Authorization Checks**: Workspace roles are cached to evaluate permissions instantly during handler auth.
+
+##### How use Redis in workspace:
+- **Workspace Metadata Cache (`workspace:<workspaceId>:meta`)**: Redis Hash storing core workspace fields with a 24-hour TTL.
+- **Lexicographical ZSET Indexing (`user:<userId>:workspaces:owned` and `user:<userId>:workspaces:joined`)**: Stored as Sorted Sets where all members have a score of `0`. Redis sorts them lexicographically. Since IDs are UUIDv7, lexicographical sorting corresponds to chronological sorting.
+  - Pagination fetches exactly `limit` IDs using `ZRevRangeByLex` with exclusive boundary offsets (`Max: "(" + cursor`).
+- **Workspace Role Cache (`workspace:<workspaceId>:roles`)**: Hash mapping `user_id -> role` for fast permission lookup.
+- **Workspace Members Cache (`workspace:<workspaceId>:members`)**: Hash storing JSON strings of `WorkspaceMemberResponse` indexed by `user_id` for quick collection retrieval and single member updates.
+- **Consistency & Invalidation**: We follow the Cache-Aside pattern. On creating workspaces or accepting invites, the corresponding ZSET caches are dynamically appended (`ZAdd`) and hashes updated/invalidated to guarantee strong read-after-write consistency.
+
+#### Kafka Architecture
+*(Section detail to be written later)*
 
 ---
 
@@ -142,6 +160,24 @@ The core objective of the project is to provide a seamless collaborative experie
   - Send a invite email to the workspace with 14 days expire
   - After 10 days send a reminder email
   - After 14 daya maark it as a rexpired
+
+---
+
+## Cursor-Based Pagination Strategy
+
+To support high scalability, low latency, and seamless infinite scrolling, the platform implements **Cursor-Based Pagination** using UUIDv7.
+
+### Why Cursor-Based Pagination?
+- **Consistent Retrieval Performance**: Traditional offset pagination (`LIMIT X OFFSET Y`) scales quadratically `O(N^2)` with page depth because PostgreSQL must scan and discard `Y` rows. Cursor-based pagination is `O(log N)` as it navigates directly using the index.
+- **Drift Resilience**: If elements are inserted or deleted while a client is traversing lists, offset-based lists skip or duplicate rows. Cursor boundaries prevent list drifts.
+
+### Technical Implementation:
+1. **Chronological Cursors (UUIDv7)**: Workspace, projects and task IDs are stored as time-ordered UUIDv7s. Since the highest 48 bits encode Unix milliseconds, sorting alphabetically/lexicographically matches chronological creation time.
+2. **Base64 Obfuscation**: Cursors are passed in the HTTP query string encoded in URL-safe base64 (e.g. `?cursor=MDE5Zjc1Y2YtNTh...`). This abstracts internal UUID representation and simplifies request parsing.
+3. **Database Execution**:
+   - Page 1 query: `SELECT * FROM workspaces WHERE owner_id = $1 ORDER BY id DESC LIMIT $2`
+   - Next pages query: `SELECT * FROM workspaces WHERE owner_id = $1 AND id < $2 ORDER BY id DESC LIMIT $3`
+4. **Pipelined Cache Pagination**: Redis lists are maintained in Sorted Sets (ZSETs) with a score of `0`. Cursors are paginated inside Redis using lexicographical range commands (`ZRevRangeByLex`) to query only the requested slide before looking up metadata hashes.
 
 ---
 
