@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"encoding/base64"
 	"net/http"
 	"strconv"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/pkg/apperror"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/pkg/response"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type Controller struct {
@@ -47,20 +49,43 @@ func (ctrl *Controller) ListWorkspacesByOwner(c *gin.Context) {
 		}
 	}
 
-	page := 1
-	if pageStr := c.Query("page"); pageStr != "" {
-		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-			page = p
+	cursorBase64 := c.Query("cursor")
+	var cursor string
+	if cursorBase64 != "" {
+		var decoded []byte
+		var err error
+		decoded, err = base64.URLEncoding.DecodeString(cursorBase64)
+		if err != nil {
+			decoded, err = base64.StdEncoding.DecodeString(cursorBase64)
+		}
+		if err != nil {
+			c.Error(apperror.BadRequest("Invalid cursor format: must be valid base64"))
+			return
+		}
+		cursor = string(decoded)
+		if _, err := uuid.Parse(cursor); err != nil {
+			c.Error(apperror.BadRequest("Invalid cursor format: decoded cursor is not a valid UUID"))
+			return
 		}
 	}
 
-	workspaces, err := ctrl.service.GetWorkspacesByOwner(c.Request.Context(), c.GetString("user_id"), limit, page)
+	workspaces, err := ctrl.service.GetWorkspacesByOwner(c.Request.Context(), c.GetString("user_id"), limit, cursor)
 	if err != nil {
 		c.Error(err)
 		return
 	}
 
-	response.SendResponse(c, http.StatusOK, true, "All workspace fetch successful", workspaces)
+	var nextCursor string
+	if len(workspaces) > 0 && len(workspaces) == limit {
+		lastWS := workspaces[len(workspaces)-1]
+		nextCursor = base64.URLEncoding.EncodeToString([]byte(lastWS.ID))
+	}
+
+	meta := gin.H{
+		"next_cursor": nextCursor,
+	}
+
+	response.SendResponse(c, http.StatusOK, true, "All workspace fetch successful", workspaces, meta)
 }
 
 func (ctrl *Controller) InviteUser(c *gin.Context) {
@@ -122,22 +147,45 @@ func (ctrl *Controller) ListWorkspacesByMember(c *gin.Context) {
 		}
 	}
 
-	page := 1
-	if pageStr := c.Query("page"); pageStr != "" {
-		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-			page = p
+	cursorBase64 := c.Query("cursor")
+	var cursor string
+	if cursorBase64 != "" {
+		var decoded []byte
+		var err error
+		decoded, err = base64.URLEncoding.DecodeString(cursorBase64)
+		if err != nil {
+			decoded, err = base64.StdEncoding.DecodeString(cursorBase64)
+		}
+		if err != nil {
+			c.Error(apperror.BadRequest("Invalid cursor format: must be valid base64"))
+			return
+		}
+		cursor = string(decoded)
+		if _, err := uuid.Parse(cursor); err != nil {
+			c.Error(apperror.BadRequest("Invalid cursor format: decoded cursor is not a valid UUID"))
+			return
 		}
 	}
 
 	userID := c.GetString("user_id")
 
-	workspaces, err := ctrl.service.GetWorkspacesByMember(c.Request.Context(), userID, limit, page)
+	workspaces, err := ctrl.service.GetWorkspacesByMember(c.Request.Context(), userID, limit, cursor)
 	if err != nil {
 		c.Error(err)
 		return
 	}
 
-	response.SendResponse(c, http.StatusOK, true, "Member workspaces fetched successfully", workspaces)
+	var nextCursor string
+	if len(workspaces) > 0 && len(workspaces) == limit {
+		lastWS := workspaces[len(workspaces)-1]
+		nextCursor = base64.URLEncoding.EncodeToString([]byte(lastWS.ID))
+	}
+
+	meta := gin.H{
+		"next_cursor": nextCursor,
+	}
+
+	response.SendResponse(c, http.StatusOK, true, "Member workspaces fetched successfully", workspaces, meta)
 }
 
 func (ctrl *Controller) GetWorkspaceMembersHandler(c *gin.Context) {
