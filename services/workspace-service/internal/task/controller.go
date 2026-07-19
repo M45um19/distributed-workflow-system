@@ -1,6 +1,7 @@
 package task
 
 import (
+	"encoding/base64"
 	"net/http"
 	"strconv"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/pkg/apperror"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/pkg/response"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type Controller struct {
@@ -64,10 +66,23 @@ func (ctrl *Controller) ListTasks(c *gin.Context) {
 		}
 	}
 
-	page := 1
-	if pageStr := c.Query("page"); pageStr != "" {
-		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-			page = p
+	cursorBase64 := c.Query("cursor")
+	var cursor string
+	if cursorBase64 != "" {
+		var decoded []byte
+		var err error
+		decoded, err = base64.URLEncoding.DecodeString(cursorBase64)
+		if err != nil {
+			decoded, err = base64.StdEncoding.DecodeString(cursorBase64)
+		}
+		if err != nil {
+			c.Error(apperror.BadRequest("Invalid cursor format: must be valid base64"))
+			return
+		}
+		cursor = string(decoded)
+		if _, err := uuid.Parse(cursor); err != nil {
+			c.Error(apperror.BadRequest("Invalid cursor format: decoded cursor is not a valid UUID"))
+			return
 		}
 	}
 
@@ -84,13 +99,26 @@ func (ctrl *Controller) ListTasks(c *gin.Context) {
 		}
 	}
 
-	tasks, err := ctrl.service.GetTasksByProject(c.Request.Context(), workspaceID, projectID, userID, statuses, limit, page)
+	tasks, nextCursors, err := ctrl.service.GetTasksByProject(c.Request.Context(), workspaceID, projectID, userID, statuses, limit, cursor)
 	if err != nil {
 		c.Error(err)
 		return
 	}
 
-	response.SendResponse(c, http.StatusOK, true, "Tasks fetched successfully", tasks)
+	nextCursorsBase64 := make(map[string]string)
+	for status, nc := range nextCursors {
+		if nc != "" {
+			nextCursorsBase64[status] = base64.URLEncoding.EncodeToString([]byte(nc))
+		} else {
+			nextCursorsBase64[status] = ""
+		}
+	}
+
+	meta := gin.H{
+		"next_cursors": nextCursorsBase64,
+	}
+
+	response.SendResponse(c, http.StatusOK, true, "Tasks fetched successfully", tasks, meta)
 }
 
 func (ctrl *Controller) UpdateTask(c *gin.Context) {
