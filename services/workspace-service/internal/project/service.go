@@ -215,7 +215,7 @@ func (s *service) GetProjectsByWorkspace(ctx context.Context, workspaceID string
 	}
 
 	nextCursor := ""
-	if len(projects) > 0 {
+	if len(projects) == limit && len(projects) > 0 {
 		nextCursor = projects[len(projects)-1].ID
 	}
 

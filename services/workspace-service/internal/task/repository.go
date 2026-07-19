@@ -80,6 +80,37 @@ func (r *sqlRepository) GetByProjectIDAndStatus(ctx context.Context, workspaceID
 	return tasks, nil
 }
 
+func (r *sqlRepository) GetByProjectIDAndStatusCursor(ctx context.Context, workspaceID string, projectID string, status string, limit int, cursor string) ([]domain.Task, error) {
+	var tasks []domain.Task
+	var err error
+	if cursor == "" {
+		query := `
+			SELECT t.id, t.workspace_id, t.project_id, t.title, t.description, t.status, t.priority, t.assignee_id, u.full_name AS assignee_name, t.deadline, t.created_at 
+			FROM tasks t
+			LEFT JOIN users u ON t.assignee_id = u.id
+			WHERE t.project_id = $1 AND t.status = $2 AND t.workspace_id = $3
+			ORDER BY t.created_at DESC, t.id DESC
+			LIMIT $4`
+		err = r.db.SelectContext(ctx, &tasks, query, projectID, status, workspaceID, limit)
+	} else {
+		query := `
+			SELECT t.id, t.workspace_id, t.project_id, t.title, t.description, t.status, t.priority, t.assignee_id, u.full_name AS assignee_name, t.deadline, t.created_at 
+			FROM tasks t
+			LEFT JOIN users u ON t.assignee_id = u.id
+			WHERE t.project_id = $1 AND t.status = $2 AND t.workspace_id = $3 AND t.id < $4
+			ORDER BY t.created_at DESC, t.id DESC
+			LIMIT $5`
+		err = r.db.SelectContext(ctx, &tasks, query, projectID, status, workspaceID, cursor, limit)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if tasks == nil {
+		tasks = []domain.Task{}
+	}
+	return tasks, nil
+}
+
 func (r *sqlRepository) Update(ctx context.Context, workspaceID string, t *domain.Task) error {
 	query := `
 		UPDATE tasks 
