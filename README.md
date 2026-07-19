@@ -92,9 +92,9 @@ The core objective of the project is to provide a seamless collaborative experie
 | POST | `/api/v1/workspace/invites/accept` | Accept invite | Yes | `{"token":"6fa7dfcd-bfa2-4e13-bdb4-6e7fcb8ee8b5"}` |
 | GET | `/api/v1/workspace/:id/members` | Get members | Yes | N/A |
 | POST | `/api/v1/workspace/:id/projects` | Create project | Yes | `{"name":"E-Commerce Microservices Backend","description":"This project handles the core ordering and payment workflow systems."}` |
-| GET | `/api/v1/workspace/:id/projects` | Get project | Yes | N/A |
+| GET | `/api/v1/workspace/:id/projects?limit=10&cursor=...` | Get projects with cursor pagination | Yes | N/A |
 | POST | `/api/v1/workspace/:id/projects/:projectId/tasks` | Create task | Yes | `{"title":"Implement Kafka Event Consumer","description":"Create a robust worker to consume user-registration events from the message queue.","priority":"HIGH","assignee_id":"6a107afad2ac1e59aba88b6f","deadline":"2026-06-15T18:30:00Z"}` |
-| GET | `/api/v1/workspace/:id/projects/:projectId/tasks` | Get task | Yes | N/A |
+| GET | `/api/v1/workspace/:id/projects/:projectId/tasks?limit=10&cursor=...&status=TODO` | Get tasks with cursor pagination | Yes | N/A |
 | PUT | `/api/v1/workspace/:id/tasks/:taskId` | Update task | Yes | `{"title":"Implement Kafka Event Consumer 2","description":"Create a robust worker to consume user-registration events from the message queue. 2","priority":"HIGH","assignee_id":"6a107afad2ac1e59aba88b6f","deadline":"2026-06-15T18:30:00Z"}` |
 | PATCH | `/api/v1/workspace/:id/tasks/:taskId/status` | Update task status | Yes | `{"status":"DONE"}` |
 | POST | `/api/v1/workspace/:id/tasks/:taskId/comments` | Add comment | Yes | `{"content":"DONE"}` |
@@ -106,12 +106,12 @@ The core objective of the project is to provide a seamless collaborative experie
 
 #### Redis Caching Architecture
 
-##### Why use Redis in workspace:
-- **High-Frequency Read Optimization**: Workspace owned/joined listings and membership checks are heavily read-intensive. Redis shields the Postgres database from high query volumes.
-- **Lexicographical Pagination**: Allows paginating workspaces chronologically descending directly inside Redis without transferring the entire set of IDs to the Go application memory.
-- **Fast Authorization Checks**: Workspace roles are cached to evaluate permissions instantly during handler auth.
+##### Why use Redis in Workspace & Project:
+- **High-Frequency Read Optimization**: Workspace listings, membership roles, and project lists are highly read-intensive. Redis shields the PostgreSQL database from high query volumes.
+- **Lexicographical Pagination**: Allows paginating workspaces and projects chronologically descending directly inside Redis without transferring the entire set of IDs to the Go application memory.
+- **Fast Authorization Checks**: Workspace roles are cached to evaluate permissions instantly during API handler authorization.
 
-##### How use Redis in workspace:
+##### Workspace Caching:
 - **Workspace Metadata Cache (`workspace:<workspaceId>:meta`)**: Redis Hash storing core workspace fields with a 24-hour TTL.
 - **Lexicographical ZSET Indexing (`user:<userId>:workspaces:owned` and `user:<userId>:workspaces:joined`)**: Stored as Sorted Sets where all members have a score of `0`. Redis sorts them lexicographically. Since IDs are UUIDv7, lexicographical sorting corresponds to chronological sorting.
   - Pagination fetches exactly `limit` IDs using `ZRevRangeByLex` with exclusive boundary offsets (`Max: "(" + cursor`).
@@ -119,8 +119,29 @@ The core objective of the project is to provide a seamless collaborative experie
 - **Workspace Members Cache (`workspace:<workspaceId>:members`)**: Hash storing JSON strings of `WorkspaceMemberResponse` indexed by `user_id` for quick collection retrieval and single member updates.
 - **Consistency & Invalidation**: We follow the Cache-Aside pattern. On creating workspaces or accepting invites, the corresponding ZSET caches are dynamically appended (`ZAdd`) and hashes updated/invalidated to guarantee strong read-after-write consistency.
 
+##### Project Caching:
+- **Project Metadata Cache (`project:<projectId>:meta`)**: Redis Hash storing core project fields (`id`, `workspace_id`, `name`, `description`, `status`, `created_by`, `created_at`) with a 24-hour TTL.
+- **Workspace Projects ZSET Indexing (`workspace:<workspaceId>:projects`)**: Sorted set storing project IDs in a workspace with score `0`. Redis sorted sets sort members lexicographically (matching UUIDv7 time sorting).
+  - Paginated queries fetch specific pages using `ZRevRangeByLex` with cursor boundaries (`Max: "(" + cursor`).
+- **Consistency & Invalidation**: We follow the Cache-Aside pattern. On creating a project, the metadata is cached and the ID is added to the ZSET list (`ZAdd`). If a cache miss occurs, the system queries the database (fetching up to 1000 items) to repopulate both the metadata hash and ZSET list. Updates or invalidations delete the list keys from Redis to trigger a reload.
+
+##### Task Caching:
+- **Task Metadata Cache (`task:<taskId>:data`)**: Redis Hash storing detailed task fields (`id`, `workspace_id`, `project_id`, `title`, `description`, `status`, `priority`, `assignee_id`, `assignee_name`, `deadline`, `created_at`) with a 3-day TTL.
+- **Project Column ZSET Indexing (`project:<projectId>:col:<columnName>`)**: Sorted set storing task IDs inside a project's column.
+  - **UUIDv7 Scoring**: Scores are set using the 48-bit millisecond timestamp extracted from the task's UUIDv7 ID, maintaining chronological sorting.
+  - **Pruning**: Restricts the column ZSET to only store the latest 100 task IDs using `ZRemRangeByRank` to prune older tasks.
+  - **Cursor-based Pagination**: Fetches paginated tasks using `ZRevRangeByScore` based on the score/timestamp extracted from the cursor task ID (`Max: "(" + cursorScore`).
+  - **Empty Column Caching**: Inserts a dummy `__empty__` member with score `-1` when a column is empty, allowing cache hits for empty columns and avoiding database roundtrips.
+- **Consistency & Invalidation**: We follow the Cache-Aside pattern. Creating or editing a task populates the metadata Hash and ZSET (if it exists) with a 3-day TTL. Moving a task's column (PATCH status) triggers an atomic Redis transaction (`TxPipeline` / `MULTI`/`EXEC` block) to update the status in the metadata Hash, remove the task ID from the old column ZSET, add it to the new column ZSET, and prune the new ZSET.
+
 #### Kafka Architecture
-*(Section detail to be written later)*
+
+The workspace and notification services leverage Kafka to support Event-Driven Architecture (EDA), ensuring loose coupling and eventual consistency.
+
+##### Core Architecture Patterns:
+- **User Snapshot Synchronization (`user-registered` topic)**: When a user registers, the Auth Service publishes a `user-registered` event containing the user's basic profile details. The Workspace Service subscribes to this topic and replicates a local read-only copy of the user profiles (`SyncUserSnapshot` method) to execute fast workspace member joins and project listings without synchronous cross-service HTTP calls.
+- **Session Termination Handling (`user-logout` topic)**: Logging out of a device triggers a `user-logout` event. The Workspace Service listens to this topic and instantly deletes the active login session cached under `session:<userId>:<deviceId>` in Redis, validating logout across all microservices.
+- **Event-Driven Notifications (`send-notification` topic)**: Services publish notification events to trigger delivery. The Notification Service consumes these events and pushes real-time notifications to the client over WebSockets and records the notification history in MongoDB.
 
 ---
 

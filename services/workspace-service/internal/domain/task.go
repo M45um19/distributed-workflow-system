@@ -57,6 +57,7 @@ type TaskRepository interface {
 	FindByID(ctx context.Context, workspaceID string, id string) (*Task, error)
 	GetByProjectID(ctx context.Context, workspaceID string, projectID string) ([]Task, error)
 	GetByProjectIDAndStatus(ctx context.Context, workspaceID string, projectID string, status string, limit, offset int) ([]Task, error)
+	GetByProjectIDAndStatusCursor(ctx context.Context, workspaceID string, projectID string, status string, limit int, cursor string) ([]Task, error)
 	Update(ctx context.Context, workspaceID string, task *Task) error
 	UpdateStatus(ctx context.Context, workspaceID string, taskID string, status string) error
 
@@ -68,10 +69,22 @@ type TaskRepository interface {
 
 type TaskService interface {
 	CreateTask(ctx context.Context, workspaceID string, projectID string, input TaskCreateInput, userID string) (*Task, error)
-	GetTasksByProject(ctx context.Context, workspaceID string, projectID string, userID string, statuses []string, limit, page int) (map[string][]Task, error)
+	GetTasksByProject(ctx context.Context, workspaceID string, projectID string, userID string, statuses []string, limit int, cursor string) (map[string][]Task, map[string]string, error)
 	UpdateFullTask(ctx context.Context, workspaceID string, taskID string, input TaskUpdateInput, userID string) (*Task, error)
 	UpdateTaskStatus(ctx context.Context, workspaceID string, taskID string, status string, userID string) error
 
 	AddComment(ctx context.Context, workspaceID string, taskID string, input CommentCreateInput, userID string) (*TaskComment, error)
 	GetTaskComments(ctx context.Context, workspaceID string, taskID string, userID string) ([]TaskComment, error)
 }
+
+type TaskCache interface {
+	AddTask(ctx context.Context, task *Task) error
+	GetTaskIDs(ctx context.Context, projectID string, status string, limit int, cursor string) ([]string, []float64, bool, error)
+	GetTaskMetas(ctx context.Context, taskIDs []string) ([]Task, []string, error)
+	SetTaskMeta(ctx context.Context, task *Task) error
+	SetColumnCache(ctx context.Context, projectID string, status string, tasks []Task) error
+	UpdateTaskMeta(ctx context.Context, task *Task) error
+	UpdateTaskStatus(ctx context.Context, projectID string, taskID string, oldStatus string, newStatus string) error
+	InvalidateTasks(ctx context.Context, projectID string) error
+}
+
