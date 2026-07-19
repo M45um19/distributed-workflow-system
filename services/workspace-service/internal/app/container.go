@@ -45,7 +45,8 @@ func NewContainer(cfg *config.Config, db *sqlx.DB, rdb *redis.Client, authGRPCCl
 	wsSvc := workspace.NewService(wsRepo, userRepo, tempClient, notiWriter, cfg.FrontendURL, wsCache)
 	wsCtrl := workspace.NewController(wsSvc)
 
-	projectSvc := project.NewService(projectRepo, wsRepo)
+	projectCache := project.NewProjectCache(rdb)
+	projectSvc := project.NewService(projectRepo, wsRepo, projectCache, wsCache)
 	projectCtrl := project.NewController(projectSvc)
 
 	taskSvc := task.NewService(taskRepo, wsRepo, userRepo, notiWriter)
