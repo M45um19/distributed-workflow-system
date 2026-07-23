@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 
 import { IUserDocument } from './user.interface.js';
-import { IUser, UserRole } from './user.validation.js';
+import { UserRole } from './user.validation.js';
 
 const userSchema = new mongoose.Schema<IUserDocument>({
   _id: {

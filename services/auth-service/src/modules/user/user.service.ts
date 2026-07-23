@@ -1,6 +1,7 @@
+import { redisService } from '../../config/redis.js';
 import { AppError } from '../../utils/appError.js';
 
-import { IUserRepository, IUserService, UserProfileResponse } from './user.interface.js';
+import { IUserRepository, IUserService, UserProfileResponse, UserSessionResponse } from './user.interface.js';
 import { IUser } from './user.validation.js';
 
 export class UserService implements IUserService {
@@ -44,5 +45,38 @@ export class UserService implements IUserService {
       country: updatedUser.country,
       created_at: updatedUser.created_at,
     };
+  }
+
+  async getUserSessions(userId: string): Promise<UserSessionResponse[]> {
+    const keys = await redisService.keys(`session:${userId}:*`);
+    if (!keys || keys.length === 0) {
+      return [];
+    }
+
+    const values = await redisService.mget(keys);
+    const activeSessions: UserSessionResponse[] = [];
+
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      if (!key) continue;
+      const data = values[i];
+      if (!data) continue;
+
+      try {
+        const parsed = JSON.parse(data);
+        const parts = key.split(':');
+        const deviceId = parts[2] || '';
+
+        activeSessions.push({
+          deviceId,
+          ip: parsed.meta?.ip || '',
+          deviceName: parsed.meta?.deviceName || '',
+        });
+      } catch {
+        // Skip invalid/unparseable session data
+      }
+    }
+
+    return activeSessions;
   }
 }

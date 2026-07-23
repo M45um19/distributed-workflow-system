@@ -28,7 +28,14 @@ export interface UserProfileResponse {
   created_at?: Date | undefined;
 }
 
+export interface UserSessionResponse {
+  deviceId: string;
+  ip: string;
+  deviceName: string;
+}
+
 export interface IUserService {
   getUserProfile(userId: string): Promise<UserProfileResponse>;
   updateUserProfile(userId: string, data: Partial<IUser>): Promise<UserProfileResponse>;
+  getUserSessions(userId: string): Promise<UserSessionResponse[]>;
 }

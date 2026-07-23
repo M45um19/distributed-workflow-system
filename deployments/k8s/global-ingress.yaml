@@ -6,6 +6,7 @@ metadata:
     nginx.ingress.kubernetes.io/enable-cors: "true"
     nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS, DELETE, PATCH"
     nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "http://localhost:3000, http://localhost:5173"
     nginx.ingress.kubernetes.io/use-regex: "true"
 
     nginx.ingress.kubernetes.io/websocket-services: "notification-service"

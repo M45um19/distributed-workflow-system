@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/domain"
 	"github.com/jmoiron/sqlx"
@@ -135,10 +136,26 @@ func (r *sqlRepository) CreateComment(ctx context.Context, workspaceID string, c
 	return r.db.QueryRowContext(ctx, query, c.ID, c.WorkspaceID, c.TaskID, c.UserID, c.Content).Scan(&c.ID, &c.CreatedAt)
 }
 
-func (r *sqlRepository) GetCommentsByTaskID(ctx context.Context, workspaceID string, taskID string) ([]domain.TaskComment, error) {
+func (r *sqlRepository) GetCommentsByTaskID(ctx context.Context, workspaceID string, taskID string, limit int, cursor string) ([]domain.TaskComment, error) {
 	var comments []domain.TaskComment
-	query := `SELECT id, workspace_id, task_id, user_id, content, created_at FROM task_comments WHERE task_id = $1 AND workspace_id = $2 ORDER BY created_at ASC`
-	err := r.db.SelectContext(ctx, &comments, query, taskID, workspaceID)
+	var err error
+	if cursor == "" {
+		query := `
+			SELECT id, workspace_id, task_id, user_id, content, created_at 
+			FROM task_comments 
+			WHERE task_id = $1 AND workspace_id = $2 
+			ORDER BY id ASC 
+			LIMIT $3`
+		err = r.db.SelectContext(ctx, &comments, query, taskID, workspaceID, limit)
+	} else {
+		query := `
+			SELECT id, workspace_id, task_id, user_id, content, created_at 
+			FROM task_comments 
+			WHERE task_id = $1 AND workspace_id = $2 AND id > $3
+			ORDER BY id ASC 
+			LIMIT $4`
+		err = r.db.SelectContext(ctx, &comments, query, taskID, workspaceID, cursor, limit)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -160,4 +177,44 @@ func (r *sqlRepository) GetWorkspaceIDByTaskID(ctx context.Context, workspaceID 
 	query := `SELECT p.workspace_id FROM tasks t JOIN projects p ON t.project_id = p.id AND t.workspace_id = p.workspace_id WHERE t.id = $1 AND t.workspace_id = $2`
 	err := r.db.GetContext(ctx, &wID, query, taskID, workspaceID)
 	return wID, err
+}
+
+func (r *sqlRepository) BulkCreate(ctx context.Context, tasks []domain.Task) error {
+	if len(tasks) == 0 {
+		return nil
+	}
+
+	numCols := 10
+	query := `INSERT INTO tasks (id, workspace_id, project_id, title, description, status, priority, assignee_id, deadline, created_at) VALUES `
+	
+	vals := make([]interface{}, 0, len(tasks)*numCols)
+	for i, t := range tasks {
+		if i > 0 {
+			query += ", "
+		}
+		offset := i * numCols
+		query += fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)", 
+			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7, offset+8, offset+9, offset+10)
+		
+		var assigneeID interface{}
+		if t.AssigneeID == "" {
+			assigneeID = nil
+		} else {
+			assigneeID = t.AssigneeID
+		}
+
+		var deadline interface{}
+		if t.Deadline.IsZero() {
+			deadline = nil
+		} else {
+			deadline = t.Deadline
+		}
+
+		vals = append(vals, t.ID, t.WorkspaceID, t.ProjectID, t.Title, t.Description, t.Status, t.Priority, assigneeID, deadline, t.CreatedAt)
+	}
+	
+	query += " ON CONFLICT (id, workspace_id) DO NOTHING"
+
+	_, err := r.db.ExecContext(ctx, query, vals...)
+	return err
 }
