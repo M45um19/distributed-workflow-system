@@ -44,4 +44,22 @@ export class UserController {
       next(error);
     }
   };
+
+  getSessions = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        throw new AppError('Unauthorized', 401);
+      }
+      const sessions = await this.userService.getUserSessions(userId);
+      sendResponse(res, {
+        statusCode: 200,
+        success: true,
+        message: 'Sessions fetched successfully',
+        data: sessions,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
 }

@@ -102,6 +102,13 @@ func main() {
 			log.Println("Kafka Writer flushed and closed safely.")
 		}
 	}
+	if container.TaskCreatedWriter != nil {
+		if err := container.TaskCreatedWriter.Close(); err != nil {
+			log.Printf("Error closing TaskCreated Kafka Writer: %v", err)
+		} else {
+			log.Println("TaskCreated Kafka Writer flushed and closed safely.")
+		}
+	}
 	if rdb != nil {
 		rdb.Close()
 		log.Println("Redis connection closed.")

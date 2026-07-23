@@ -64,6 +64,9 @@ The core objective of the project is to provide a seamless collaborative experie
 | POST | `/api/v1/auth/login` | Login (JWT + Refresh Token) | No | `{"email": "test@test.com", "password": "test1234"}` |
 | POST | `/api/v1/auth/logout` | Logout with device id | Yes |  |
 | POST | `/api/v1/auth/refresh-token` | Get new access token | No | `{"refreshToken": "eyJhbGc...."}` |
+| GET | `/api/v1/users/profile` | Get user profile | Yes |  |
+| PUT | `/api/v1/users/profile` | Update user profile | Yes | `{"full_name": "Jane Doe", "bio": "developer"}` |
+| GET | `/api/v1/users/sessions` | Get all active sessions | Yes |  |
 
 #### gRPC
 | Method | Request | Response | Description |
@@ -142,6 +145,7 @@ The workspace and notification services leverage Kafka to support Event-Driven A
 - **User Snapshot Synchronization (`user-registered` topic)**: When a user registers, the Auth Service publishes a `user-registered` event containing the user's basic profile details. The Workspace Service subscribes to this topic and replicates a local read-only copy of the user profiles (`SyncUserSnapshot` method) to execute fast workspace member joins and project listings without synchronous cross-service HTTP calls.
 - **Session Termination Handling (`user-logout` topic)**: Logging out of a device triggers a `user-logout` event. The Workspace Service listens to this topic and instantly deletes the active login session cached under `session:<userId>:<deviceId>` in Redis, validating logout across all microservices.
 - **Event-Driven Notifications (`send-notification` topic)**: Services publish notification events to trigger delivery. The Notification Service consumes these events and pushes real-time notifications to the client over WebSockets and records the notification history in MongoDB.
+- **Asynchronous Task Creation (`task-created` topic)**: To support high-throughput, write-heavy task ingestion, tasks are not inserted directly into the database. Instead, the creation request generates a UUIDv7, queries the assignee name using a cache-first approach (checking the workspace members cache first, then the user repo database on miss), updates the Redis cache immediately for real-time reads, and publishes the task object to the `task-created` Kafka topic. A background consumer buffers incoming tasks and performs bulk inserts into PostgreSQL in batches of 1,000 tasks or every 2 seconds.
 
 ---
 
@@ -169,6 +173,7 @@ The workspace and notification services leverage Kafka to support Event-Driven A
 - user-registered → Auth → all service (Snapshot sync)
 - user-logout → Auth → all service (for delete login session)
 - send-notification → all service → notification
+- task-created → Workspace → Workspace (async bulk task creation)
 
 ---
 
@@ -276,3 +281,67 @@ taskflow-backend/
 ├── .gitignore
 ├── LICENSE
 └── README.md
+
+---
+
+## Deployment Guide
+
+This system supports two deployment profiles: Localhost Development and Production-Grade Enterprise Deployment.
+
+### 1. Localhost Development Deployment
+
+For local development, a pre-configured orchestrator script handles the full bootstrap, from spinning up docker databases to setting up a Kubernetes cluster, building service images, and installing monitoring charts.
+
+#### Prerequisites
+Ensure the following tools are installed on your machine and are added to your shell's PATH:
+- **Docker & Docker Desktop** (Make sure the daemon is running)
+- **KinD (Kubernetes in Docker)**
+- **kubectl**
+- **Helm**
+
+#### Step-by-Step Run Instructions
+1. **Execute the Setup Script**:
+   Run the orchestrator script from the root of the workspace:
+   ```bash
+   ./scripts/setup-and-build.sh
+   ```
+   *The script will prompt you step-by-step to start database containers, build Docker images, configure KinD, install Helm charts (Prometheus, Grafana, Loki, Tempo, OpenTelemetry, Nginx Ingress), and deploy services.*
+
+2. **Accessing Local Ingress & APIs**:
+   Port-forward the Nginx Ingress Controller to route external HTTP requests to internal microservices:
+   ```bash
+   kubectl port-forward svc/ingress-nginx-controller -n ingress-nginx 8080:80
+   ```
+   Verify services are alive on port `8080`:
+   - Auth Service: `GET http://localhost:8080/api/v1/auth/health`
+   - Workspace Service: `GET http://localhost:8080/api/v1/workspace/health`
+   - Notification Service: `GET http://localhost:8080/api/v1/notification/health`
+
+3. **Accessing Dashboards**:
+   Port-forward Grafana to inspect logs, traces, and metrics:
+   ```bash
+   kubectl port-forward svc/kube-stack-grafana 3000:80 -n monitoring
+   ```
+   - Open: `http://localhost:3000` (User: `admin`, get password using instructions printed by the setup script).
+
+---
+
+### 2. Production Deployment on AWS (Enterprise & Scale to Millions)
+
+For highly resilient, enterprise-scale production running on AWS, we pivot away from local containers to fully managed cloud services:
+
+#### Infrastructure Layer
+- **Managed Kubernetes**: Run on **Amazon EKS** with autoscaling powered by **Karpenter** (or AWS Cluster Autoscaler) to dynamically provision EC2 worker nodes based on real-time resource demands.
+- **API Gateway & Ingress**: Route public requests through an **AWS Network Load Balancer (NLB)** integrated with the Nginx Ingress controller. Manage SSL/TLS certificates securely via **AWS Certificate Manager (ACM)**.
+- **Secrets Management**: Do not store passwords, connection strings, or JWT signing keys in standard plain-text Kubernetes ConfigMaps or Secrets. Integrate **AWS Secrets Manager** with the **External Secrets Operator (ESO)** to securely sync and inject secret variables into application pods.
+
+#### Data & Streaming Layer
+- **Relational Storage**: Migrate PostgreSQL to **Amazon Aurora PostgreSQL** (Serverless v2 or multi-AZ provisioned instances) for sub-millisecond read scaling, connection pooling (via PgBouncer or AWS RDS Proxy), and automated point-in-time recovery.
+- **Document Storage**: Replace MongoDB with **Amazon DocumentDB (with MongoDB compatibility)** configured across multiple availability zones.
+- **Cache & Session Management**: Upgrade Redis to **Amazon ElastiCache for Redis** in Cluster Mode to handle high-throughput session lookups and user caching.
+- **Event Streaming**: Move the Apache Kafka cluster to **Amazon MSK (Managed Streaming for Apache Kafka)** to ensure high availability, partition auto-scaling, and secure VPC peering.
+- **Durable Orchestration**: Migrate from self-hosted local Temporal instances to **Temporal Cloud** (fully managed Temporal namespace) to guarantee 99.99% availability, automated history/matching scale, and zero cluster maintenance, while only running workflow worker processes inside EKS.
+
+#### Production Monitoring & Observability
+- **Observability Stack (Prometheus, Grafana, Loki, Tempo)**: Route all telemetry (metrics, logs, traces) to **Grafana Cloud** rather than managing storage, compaction, and query layers for a self-hosted cluster on EKS. This provides a fully managed SaaS observability suite with auto-scaling ingestion, high query speeds, and zero-maintenance dashboard visualizations.
+- **CI/CD Pipeline**: Automate deployments to EKS using GitOps controllers like **ArgoCD** or **FluxCD** integrated with GitHub Actions and AWS ECR (Elastic Container Registry).

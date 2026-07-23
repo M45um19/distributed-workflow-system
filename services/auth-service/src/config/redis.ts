@@ -7,6 +7,8 @@ export interface IRedisService {
   get(key: string): Promise<string | null>;
   del(key: string): Promise<number>;
   ping(): Promise<string>;
+  keys(pattern: string): Promise<string[]>;
+  mget(keys: string[]): Promise<(string | null)[]>;
 }
 
 class RedisConfig implements IRedisService {
@@ -57,6 +59,15 @@ class RedisConfig implements IRedisService {
 
   async ping(): Promise<string> {
     return (await this.client.ping()) as string;
+  }
+
+  async keys(pattern: string): Promise<string[]> {
+    return (await this.client.keys(pattern)) as string[];
+  }
+
+  async mget(keys: string[]): Promise<(string | null)[]> {
+    if (keys.length === 0) return [];
+    return (await this.client.mget(keys)) as (string | null)[];
   }
 
   async quit(): Promise<void> {
