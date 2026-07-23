@@ -62,7 +62,8 @@ type TaskRepository interface {
 	UpdateStatus(ctx context.Context, workspaceID string, taskID string, status string) error
 
 	CreateComment(ctx context.Context, workspaceID string, comment *TaskComment) error
-	GetCommentsByTaskID(ctx context.Context, workspaceID string, taskID string) ([]TaskComment, error)
+	GetCommentsByTaskID(ctx context.Context, workspaceID string, taskID string, limit int, cursor string) ([]TaskComment, error)
+	BulkCreate(ctx context.Context, tasks []Task) error
 	GetWorkspaceIDByProjectID(ctx context.Context, workspaceID string, projectID string) (string, error)
 	GetWorkspaceIDByTaskID(ctx context.Context, workspaceID string, taskID string) (string, error)
 }
@@ -74,7 +75,7 @@ type TaskService interface {
 	UpdateTaskStatus(ctx context.Context, workspaceID string, taskID string, status string, userID string) error
 
 	AddComment(ctx context.Context, workspaceID string, taskID string, input CommentCreateInput, userID string) (*TaskComment, error)
-	GetTaskComments(ctx context.Context, workspaceID string, taskID string, userID string) ([]TaskComment, error)
+	GetTaskComments(ctx context.Context, workspaceID string, taskID string, userID string, limit int, cursor string) ([]TaskComment, string, error)
 }
 
 type TaskCache interface {

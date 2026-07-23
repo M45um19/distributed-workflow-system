@@ -203,11 +203,51 @@ func (ctrl *Controller) GetComments(c *gin.Context) {
 	taskID := c.Param("taskId")
 	userID := c.GetString("user_id")
 
-	comments, err := ctrl.service.GetTaskComments(c.Request.Context(), workspaceID, taskID, userID)
+	limit := 10
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			if l > 20 {
+				limit = 20
+			} else {
+				limit = l
+			}
+		}
+	}
+
+	cursorBase64 := c.Query("cursor")
+	var cursor string
+	if cursorBase64 != "" {
+		var decoded []byte
+		var err error
+		decoded, err = base64.URLEncoding.DecodeString(cursorBase64)
+		if err != nil {
+			decoded, err = base64.StdEncoding.DecodeString(cursorBase64)
+		}
+		if err != nil {
+			c.Error(apperror.BadRequest("Invalid cursor format: must be valid base64"))
+			return
+		}
+		cursor = string(decoded)
+		if _, err := uuid.Parse(cursor); err != nil {
+			c.Error(apperror.BadRequest("Invalid cursor format: decoded cursor is not a valid UUID"))
+			return
+		}
+	}
+
+	comments, nextCursor, err := ctrl.service.GetTaskComments(c.Request.Context(), workspaceID, taskID, userID, limit, cursor)
 	if err != nil {
 		c.Error(err)
 		return
 	}
 
-	response.SendResponse(c, http.StatusOK, true, "Comments fetched successfully", comments)
+	var nextCursorBase64 string
+	if nextCursor != "" {
+		nextCursorBase64 = base64.URLEncoding.EncodeToString([]byte(nextCursor))
+	}
+
+	meta := gin.H{
+		"next_cursor": nextCursorBase64,
+	}
+
+	response.SendResponse(c, http.StatusOK, true, "Comments fetched successfully", comments, meta)
 }

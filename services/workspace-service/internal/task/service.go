@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/domain"
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/pkg/apperror"
@@ -19,16 +20,18 @@ type service struct {
 	wsRepo                  domain.WorkspaceRepository
 	userRepo                domain.UserRepository
 	notificationkafkaWriter *kafka.Writer
+	taskCreatedkafkaWriter  *kafka.Writer
 	taskCache               domain.TaskCache
 	wsCache                 domain.WorkspaceCache
 }
 
-func NewService(taskRepo domain.TaskRepository, wsRepo domain.WorkspaceRepository, userRepo domain.UserRepository, notificationkafkaWriter *kafka.Writer, taskCache domain.TaskCache, wsCache domain.WorkspaceCache) domain.TaskService {
+func NewService(taskRepo domain.TaskRepository, wsRepo domain.WorkspaceRepository, userRepo domain.UserRepository, notificationkafkaWriter *kafka.Writer, taskCreatedkafkaWriter *kafka.Writer, taskCache domain.TaskCache, wsCache domain.WorkspaceCache) domain.TaskService {
 	return &service{
 		taskRepo:                taskRepo,
 		wsRepo:                  wsRepo,
 		userRepo:                userRepo,
 		notificationkafkaWriter: notificationkafkaWriter,
+		taskCreatedkafkaWriter:  taskCreatedkafkaWriter,
 		taskCache:               taskCache,
 		wsCache:                 wsCache,
 	}
@@ -110,6 +113,18 @@ func (s *service) getTaskByID(ctx context.Context, workspaceID string, taskID st
 }
 
 
+func (s *service) sendTaskCreated(ctx context.Context, t *domain.Task) error {
+	jsonData, err := json.Marshal(t)
+	if err != nil {
+		return err
+	}
+
+	return s.taskCreatedkafkaWriter.WriteMessages(ctx, kafka.Message{
+		Key:   []byte(t.ID),
+		Value: jsonData,
+	})
+}
+
 func (s *service) CreateTask(ctx context.Context, workspaceID string, projectID string, input domain.TaskCreateInput, userID string) (*domain.Task, error) {
 	if err := s.checkAccess(ctx, workspaceID, userID, "ADMIN"); err != nil {
 		return nil, err
@@ -120,39 +135,63 @@ func (s *service) CreateTask(ctx context.Context, workspaceID string, projectID 
 		return nil, apperror.InternalServer("failed to generate task ID: " + err.Error())
 	}
 
-	t := &domain.Task{
-		ID:          taskID.String(),
-		WorkspaceID: workspaceID,
-		ProjectID:   projectID,
-		Title:       input.Title,
-		Description: input.Description,
-		Status:      "TODO",
-		Priority:    input.Priority,
-		AssigneeID:  input.AssigneeID,
-		Deadline:    input.Deadline,
-	}
-
-	if err := s.taskRepo.Create(ctx, workspaceID, t); err != nil {
-		return nil, err
-	}
-
-	createdTask, err := s.taskRepo.FindByID(ctx, workspaceID, t.ID)
-	if err == nil && createdTask != nil {
-		_ = s.taskCache.AddTask(ctx, createdTask)
-
-		if createdTask.AssigneeID != "" && createdTask.AssigneeID != userID {
-			notificationPayload := domain.NotificationEventPayload{
-				Channel: "IN_APP",
-				UserID:  createdTask.AssigneeID,
-				Title:   "Task Assigned",
-				Message: fmt.Sprintf("You have been assigned the task '%s'", createdTask.Title),
-				Type:    "INFO",
+	var assigneeName *string
+	if input.AssigneeID != "" {
+		// 1. Try to find assignee in workspace members cache
+		members, hit, err := s.wsCache.GetMembers(ctx, workspaceID)
+		if err == nil && hit {
+			for _, m := range members {
+				if m.UserID == input.AssigneeID {
+					assigneeName = &m.FullName
+					break
+				}
 			}
-			s.sendNotification(ctx, notificationPayload, createdTask.AssigneeID)
+		}
+
+		// 2. Fall back to user repo if cache miss or not found in members cache
+		if assigneeName == nil {
+			u, err := s.userRepo.FindByID(ctx, input.AssigneeID)
+			if err == nil && u != nil {
+				assigneeName = &u.FullName
+			}
 		}
 	}
 
-	return createdTask, err
+	t := &domain.Task{
+		ID:           taskID.String(),
+		WorkspaceID:  workspaceID,
+		ProjectID:    projectID,
+		Title:        input.Title,
+		Description:  input.Description,
+		Status:       "TODO",
+		Priority:     input.Priority,
+		AssigneeID:   input.AssigneeID,
+		AssigneeName: assigneeName,
+		Deadline:     input.Deadline,
+		CreatedAt:    time.Now(),
+	}
+
+	// 1. Add directly to Redis cache for immediate visibility
+	_ = s.taskCache.AddTask(ctx, t)
+
+	// 2. Publish event to Kafka task-created topic
+	if err := s.sendTaskCreated(ctx, t); err != nil {
+		return nil, apperror.InternalServer("failed to publish task created event: " + err.Error())
+	}
+
+	// 3. Send Notification to assignee asynchronously if applicable
+	if t.AssigneeID != "" && t.AssigneeID != userID {
+		notificationPayload := domain.NotificationEventPayload{
+			Channel: "IN_APP",
+			UserID:  t.AssigneeID,
+			Title:   "Task Assigned",
+			Message: fmt.Sprintf("You have been assigned the task '%s'", t.Title),
+			Type:    "INFO",
+		}
+		s.sendNotification(ctx, notificationPayload, t.AssigneeID)
+	}
+
+	return t, nil
 }
 
 func (s *service) GetTasksByProject(ctx context.Context, workspaceID string, projectID string, userID string, statuses []string, limit int, cursor string) (map[string][]domain.Task, map[string]string, error) {
@@ -381,12 +420,24 @@ func (s *service) AddComment(ctx context.Context, workspaceID string, taskID str
 	return comment, nil
 }
 
-func (s *service) GetTaskComments(ctx context.Context, workspaceID string, taskID string, userID string) ([]domain.TaskComment, error) {
+func (s *service) GetTaskComments(ctx context.Context, workspaceID string, taskID string, userID string, limit int, cursor string) ([]domain.TaskComment, string, error) {
 	if err := s.checkAccess(ctx, workspaceID, userID); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return s.taskRepo.GetCommentsByTaskID(ctx, workspaceID, taskID)
+	// Fetch limit + 1 comments to determine if there is a next page
+	comments, err := s.taskRepo.GetCommentsByTaskID(ctx, workspaceID, taskID, limit+1, cursor)
+	if err != nil {
+		return nil, "", err
+	}
+
+	var nextCursor string
+	if len(comments) > limit {
+		nextCursor = comments[limit-1].ID
+		comments = comments[:limit]
+	}
+
+	return comments, nextCursor, nil
 }
 
 func (s *service) sendNotification(ctx context.Context, payload domain.NotificationEventPayload, key string) {

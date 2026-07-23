@@ -11,6 +11,7 @@ export const setupUserRoutes = (userCtrl: UserController, authMiddleware: AuthMi
   
   router.get("/profile", authMiddleware.protect, userCtrl.getProfile);
   router.put("/profile", authMiddleware.protect, validateRequest(updateProfileSchema), userCtrl.updateProfile);
+  router.get("/sessions", authMiddleware.protect, userCtrl.getSessions);
   
   return router;
 };
