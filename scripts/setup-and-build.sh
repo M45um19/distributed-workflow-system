@@ -108,6 +108,11 @@ if [[ "$install_monitoring" == "y" ]]; then
         --set deploymentMode=SingleBinary \
         --set loki.auth_enabled=false \
         --set singleBinary.replicas=1 \
+        --set singleBinary.resources.requests.memory=100Mi \
+        --set singleBinary.resources.limits.memory=500Mi \
+        --set chunksCache.enabled=false \
+        --set resultsCache.enabled=false \
+        --set lokiCanary.enabled=false \
         --set loki.storage.type=filesystem \
         --set loki.storage.bucketNames.chunks=chunks \
         --set loki.storage.bucketNames.ruler=ruler \
