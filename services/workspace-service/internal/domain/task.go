@@ -25,6 +25,12 @@ type TaskStatusUpdateInput struct {
 	Status string `json:"status" binding:"required,oneof=TODO IN_PROGRESS REVIEW DONE"`
 }
 
+type TaskStatusUpdate struct {
+	WorkspaceID string `json:"workspace_id"`
+	TaskID      string `json:"task_id"`
+	Status      string `json:"status"`
+}
+
 type CommentCreateInput struct {
 	Content string `json:"content" binding:"required,max=2000"`
 }
@@ -64,6 +70,8 @@ type TaskRepository interface {
 	CreateComment(ctx context.Context, workspaceID string, comment *TaskComment) error
 	GetCommentsByTaskID(ctx context.Context, workspaceID string, taskID string, limit int, cursor string) ([]TaskComment, error)
 	BulkCreate(ctx context.Context, tasks []Task) error
+	BulkUpdate(ctx context.Context, tasks []Task) error
+	BulkUpdateStatus(ctx context.Context, updates []TaskStatusUpdate) error
 	GetWorkspaceIDByProjectID(ctx context.Context, workspaceID string, projectID string) (string, error)
 	GetWorkspaceIDByTaskID(ctx context.Context, workspaceID string, taskID string) (string, error)
 }

@@ -25,11 +25,13 @@ type Container struct {
 	ProjectCtrl       *project.Controller
 	TaskCtrl          *task.Controller
 	AuthMid           *middleware.AuthMiddleware
-	KafkaWorker       *kafka.Worker
-	KafkaWriter       *kafkaGo.Writer
-	TaskCreatedWriter *kafkaGo.Writer
-	TemporalWorker    *temporal.Worker
-	TemporalClient    client.Client
+	KafkaWorker             *kafka.Worker
+	KafkaWriter             *kafkaGo.Writer
+	TaskCreatedWriter       *kafkaGo.Writer
+	TaskUpdatedWriter       *kafkaGo.Writer
+	TaskStatusUpdatedWriter *kafkaGo.Writer
+	TemporalWorker          *temporal.Worker
+	TemporalClient          client.Client
 }
 
 func NewContainer(cfg *config.Config, db *sqlx.DB, rdb *redis.Client, authGRPCClient pb.AuthServiceClient, isWorker bool) *Container {
@@ -42,6 +44,8 @@ func NewContainer(cfg *config.Config, db *sqlx.DB, rdb *redis.Client, authGRPCCl
 
 	notiWriter := config.NewKafkaWriter(cfg.KafkaBrokers, "send-notification")
 	taskCreatedWriter := config.NewKafkaWriter(cfg.KafkaBrokers, "task-created")
+	taskUpdatedWriter := config.NewKafkaWriter(cfg.KafkaBrokers, "task-updated")
+	taskStatusUpdatedWriter := config.NewKafkaWriter(cfg.KafkaBrokers, "task-status-updated")
 	tempClient := config.ConnectTemporal(cfg.TemporalHost)
 	wsCache := workspace.NewWorkspaceCache(rdb)
 	wsSvc := workspace.NewService(wsRepo, userRepo, tempClient, notiWriter, cfg.FrontendURL, wsCache)
@@ -52,19 +56,21 @@ func NewContainer(cfg *config.Config, db *sqlx.DB, rdb *redis.Client, authGRPCCl
 	projectCtrl := project.NewController(projectSvc)
 
 	taskCache := task.NewTaskCache(rdb)
-	taskSvc := task.NewService(taskRepo, wsRepo, userRepo, notiWriter, taskCreatedWriter, taskCache, wsCache)
+	taskSvc := task.NewService(taskRepo, wsRepo, userRepo, notiWriter, taskCreatedWriter, taskUpdatedWriter, taskStatusUpdatedWriter, taskCache, wsCache)
 	taskCtrl := task.NewController(taskSvc)
 
 	authMid := middleware.NewAuthMiddleware(cfg.JWTSecret, rdb, authGRPCClient)
 
 	container := &Container{
-		WorkspaceCtrl:     wsCtrl,
-		ProjectCtrl:       projectCtrl,
-		TaskCtrl:          taskCtrl,
-		AuthMid:           authMid,
-		TemporalClient:    tempClient,
-		KafkaWriter:       notiWriter,
-		TaskCreatedWriter: taskCreatedWriter,
+		WorkspaceCtrl:           wsCtrl,
+		ProjectCtrl:             projectCtrl,
+		TaskCtrl:                taskCtrl,
+		AuthMid:                 authMid,
+		TemporalClient:          tempClient,
+		KafkaWriter:             notiWriter,
+		TaskCreatedWriter:       taskCreatedWriter,
+		TaskUpdatedWriter:       taskUpdatedWriter,
+		TaskStatusUpdatedWriter: taskStatusUpdatedWriter,
 	}
 
 	if isWorker {
@@ -76,10 +82,18 @@ func NewContainer(cfg *config.Config, db *sqlx.DB, rdb *redis.Client, authGRPCCl
 		taskCreatedHandler := kafka.NewTaskCreatedHandler(taskRepo)
 		taskCreatedReader := config.NewKafkaReader(cfg.KafkaBrokers, "task-created")
 
+		taskUpdatedHandler := kafka.NewTaskUpdatedHandler(taskRepo)
+		taskUpdatedReader := config.NewKafkaReader(cfg.KafkaBrokers, "task-updated")
+
+		taskStatusUpdatedHandler := kafka.NewTaskStatusUpdatedHandler(taskRepo)
+		taskStatusUpdatedReader := config.NewKafkaReader(cfg.KafkaBrokers, "task-status-updated")
+
 		kWorker := kafka.NewWorker()
 		kWorker.AddTopicHandler(regReader, userRegHandler)
 		kWorker.AddTopicHandler(logoutReader, userLogoutHandler)
 		kWorker.AddTopicHandler(taskCreatedReader, taskCreatedHandler)
+		kWorker.AddTopicHandler(taskUpdatedReader, taskUpdatedHandler)
+		kWorker.AddTopicHandler(taskStatusUpdatedReader, taskStatusUpdatedHandler)
 		container.KafkaWorker = kWorker
 
 		tempWorker := temporal.NewWorker(tempClient, "workspace-task-queue")
