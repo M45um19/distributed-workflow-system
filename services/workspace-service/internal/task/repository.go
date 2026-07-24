@@ -218,3 +218,79 @@ func (r *sqlRepository) BulkCreate(ctx context.Context, tasks []domain.Task) err
 	_, err := r.db.ExecContext(ctx, query, vals...)
 	return err
 }
+
+func (r *sqlRepository) BulkUpdate(ctx context.Context, tasks []domain.Task) error {
+	if len(tasks) == 0 {
+		return nil
+	}
+
+	numCols := 7
+	query := `UPDATE tasks AS t SET 
+		title = u.title,
+		description = u.description,
+		priority = u.priority,
+		assignee_id = u.assignee_id,
+		deadline = u.deadline
+	FROM (VALUES `
+
+	vals := make([]interface{}, 0, len(tasks)*numCols)
+	for i, t := range tasks {
+		if i > 0 {
+			query += ", "
+		}
+		offset := i * numCols
+		query += fmt.Sprintf("($%d::uuid, $%d::uuid, $%d::varchar, $%d::text, $%d::varchar, $%d::varchar, $%d::timestamptz)",
+			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7)
+
+		var assigneeID interface{}
+		if t.AssigneeID == "" {
+			assigneeID = nil
+		} else {
+			assigneeID = t.AssigneeID
+		}
+
+		var deadline interface{}
+		if t.Deadline.IsZero() {
+			deadline = nil
+		} else {
+			deadline = t.Deadline
+		}
+
+		vals = append(vals, t.ID, t.WorkspaceID, t.Title, t.Description, t.Priority, assigneeID, deadline)
+	}
+
+	query += `) AS u(id, workspace_id, title, description, priority, assignee_id, deadline)
+	WHERE t.id = u.id AND t.workspace_id = u.workspace_id`
+
+	_, err := r.db.ExecContext(ctx, query, vals...)
+	return err
+}
+
+func (r *sqlRepository) BulkUpdateStatus(ctx context.Context, updates []domain.TaskStatusUpdate) error {
+	if len(updates) == 0 {
+		return nil
+	}
+
+	numCols := 3
+	query := `UPDATE tasks AS t SET 
+		status = u.status
+	FROM (VALUES `
+
+	vals := make([]interface{}, 0, len(updates)*numCols)
+	for i, update := range updates {
+		if i > 0 {
+			query += ", "
+		}
+		offset := i * numCols
+		query += fmt.Sprintf("($%d::uuid, $%d::uuid, $%d::varchar)",
+			offset+1, offset+2, offset+3)
+
+		vals = append(vals, update.TaskID, update.WorkspaceID, update.Status)
+	}
+
+	query += `) AS u(id, workspace_id, status)
+	WHERE t.id = u.id AND t.workspace_id = u.workspace_id`
+
+	_, err := r.db.ExecContext(ctx, query, vals...)
+	return err
+}

@@ -16,24 +16,38 @@ import (
 )
 
 type service struct {
-	taskRepo                domain.TaskRepository
-	wsRepo                  domain.WorkspaceRepository
-	userRepo                domain.UserRepository
-	notificationkafkaWriter *kafka.Writer
-	taskCreatedkafkaWriter  *kafka.Writer
-	taskCache               domain.TaskCache
-	wsCache                 domain.WorkspaceCache
+	taskRepo                     domain.TaskRepository
+	wsRepo                       domain.WorkspaceRepository
+	userRepo                     domain.UserRepository
+	notificationkafkaWriter      *kafka.Writer
+	taskCreatedkafkaWriter       *kafka.Writer
+	taskUpdatedkafkaWriter       *kafka.Writer
+	taskStatusUpdatedkafkaWriter *kafka.Writer
+	taskCache                    domain.TaskCache
+	wsCache                      domain.WorkspaceCache
 }
 
-func NewService(taskRepo domain.TaskRepository, wsRepo domain.WorkspaceRepository, userRepo domain.UserRepository, notificationkafkaWriter *kafka.Writer, taskCreatedkafkaWriter *kafka.Writer, taskCache domain.TaskCache, wsCache domain.WorkspaceCache) domain.TaskService {
+func NewService(
+	taskRepo domain.TaskRepository,
+	wsRepo domain.WorkspaceRepository,
+	userRepo domain.UserRepository,
+	notificationkafkaWriter *kafka.Writer,
+	taskCreatedkafkaWriter *kafka.Writer,
+	taskUpdatedkafkaWriter *kafka.Writer,
+	taskStatusUpdatedkafkaWriter *kafka.Writer,
+	taskCache domain.TaskCache,
+	wsCache domain.WorkspaceCache,
+) domain.TaskService {
 	return &service{
-		taskRepo:                taskRepo,
-		wsRepo:                  wsRepo,
-		userRepo:                userRepo,
-		notificationkafkaWriter: notificationkafkaWriter,
-		taskCreatedkafkaWriter:  taskCreatedkafkaWriter,
-		taskCache:               taskCache,
-		wsCache:                 wsCache,
+		taskRepo:                     taskRepo,
+		wsRepo:                       wsRepo,
+		userRepo:                     userRepo,
+		notificationkafkaWriter:      notificationkafkaWriter,
+		taskCreatedkafkaWriter:       taskCreatedkafkaWriter,
+		taskUpdatedkafkaWriter:       taskUpdatedkafkaWriter,
+		taskStatusUpdatedkafkaWriter: taskStatusUpdatedkafkaWriter,
+		taskCache:                    taskCache,
+		wsCache:                      wsCache,
 	}
 }
 
@@ -121,6 +135,30 @@ func (s *service) sendTaskCreated(ctx context.Context, t *domain.Task) error {
 
 	return s.taskCreatedkafkaWriter.WriteMessages(ctx, kafka.Message{
 		Key:   []byte(t.ID),
+		Value: jsonData,
+	})
+}
+
+func (s *service) sendTaskUpdated(ctx context.Context, t *domain.Task) error {
+	jsonData, err := json.Marshal(t)
+	if err != nil {
+		return err
+	}
+
+	return s.taskUpdatedkafkaWriter.WriteMessages(ctx, kafka.Message{
+		Key:   []byte(t.ID),
+		Value: jsonData,
+	})
+}
+
+func (s *service) sendTaskStatusUpdated(ctx context.Context, update domain.TaskStatusUpdate) error {
+	jsonData, err := json.Marshal(update)
+	if err != nil {
+		return err
+	}
+
+	return s.taskStatusUpdatedkafkaWriter.WriteMessages(ctx, kafka.Message{
+		Key:   []byte(update.TaskID),
 		Value: jsonData,
 	})
 }
@@ -319,27 +357,52 @@ func (s *service) UpdateFullTask(ctx context.Context, workspaceID string, taskID
 	t.AssigneeID = input.AssigneeID
 	t.Deadline = input.Deadline
 
-	if err := s.taskRepo.Update(ctx, workspaceID, t); err != nil {
-		return nil, err
-	}
-
-	updatedTask, err := s.taskRepo.FindByID(ctx, workspaceID, t.ID)
-	if err == nil && updatedTask != nil {
-		_ = s.taskCache.UpdateTaskMeta(ctx, updatedTask)
-
-		if updatedTask.AssigneeID != "" && updatedTask.AssigneeID != userID {
-			notificationPayload := domain.NotificationEventPayload{
-				Channel: "IN_APP",
-				UserID:  updatedTask.AssigneeID,
-				Title:   "Task Updated",
-				Message: fmt.Sprintf("Assigned task '%s' has been updated", updatedTask.Title),
-				Type:    "INFO",
+	var assigneeName *string
+	if input.AssigneeID != "" {
+		if input.AssigneeID == t.AssigneeID {
+			assigneeName = t.AssigneeName
+		} else {
+			// Find new assignee name
+			members, hit, err := s.wsCache.GetMembers(ctx, workspaceID)
+			if err == nil && hit {
+				for _, m := range members {
+					if m.UserID == input.AssigneeID {
+						assigneeName = &m.FullName
+						break
+					}
+				}
 			}
-			s.sendNotification(ctx, notificationPayload, updatedTask.AssigneeID)
+			if assigneeName == nil {
+				u, err := s.userRepo.FindByID(ctx, input.AssigneeID)
+				if err == nil && u != nil {
+					assigneeName = &u.FullName
+				}
+			}
 		}
 	}
+	t.AssigneeName = assigneeName
 
-	return updatedTask, err
+	// 1. Update cache for immediate visibility
+	_ = s.taskCache.UpdateTaskMeta(ctx, t)
+
+	// 2. Publish updated event to Kafka
+	if err := s.sendTaskUpdated(ctx, t); err != nil {
+		return nil, apperror.InternalServer("failed to publish task updated event: " + err.Error())
+	}
+
+	// 3. Send Notification to assignee asynchronously if applicable
+	if t.AssigneeID != "" && t.AssigneeID != userID {
+		notificationPayload := domain.NotificationEventPayload{
+			Channel: "IN_APP",
+			UserID:  t.AssigneeID,
+			Title:   "Task Updated",
+			Message: fmt.Sprintf("Assigned task '%s' has been updated", t.Title),
+			Type:    "INFO",
+		}
+		s.sendNotification(ctx, notificationPayload, t.AssigneeID)
+	}
+
+	return t, nil
 }
 
 func (s *service) UpdateTaskStatus(ctx context.Context, workspaceID string, taskID string, status string, userID string) error {
@@ -357,12 +420,20 @@ func (s *service) UpdateTaskStatus(ctx context.Context, workspaceID string, task
 		}
 	}
 
-	if err := s.taskRepo.UpdateStatus(ctx, workspaceID, taskID, status); err != nil {
-		return err
-	}
-
+	// 1. Update cache for immediate visibility
 	_ = s.taskCache.UpdateTaskStatus(ctx, t.ProjectID, taskID, t.Status, status)
 
+	// 2. Publish status update to Kafka
+	updatePayload := domain.TaskStatusUpdate{
+		WorkspaceID: workspaceID,
+		TaskID:      taskID,
+		Status:      status,
+	}
+	if err := s.sendTaskStatusUpdated(ctx, updatePayload); err != nil {
+		return apperror.InternalServer("failed to publish task status update event: " + err.Error())
+	}
+
+	// 3. Send Notification to assignee asynchronously if applicable
 	if t.AssigneeID != "" && t.AssigneeID != userID {
 		notificationPayload := domain.NotificationEventPayload{
 			Channel: "IN_APP",
