@@ -209,13 +209,13 @@ func (s *service) CreateTask(ctx context.Context, workspaceID string, projectID 
 		CreatedAt:    time.Now(),
 	}
 
-	// 1. Add directly to Redis cache for immediate visibility
-	_ = s.taskCache.AddTask(ctx, t)
-
-	// 2. Publish event to Kafka task-created topic
+	// 1. Publish event to Kafka task-created topic
 	if err := s.sendTaskCreated(ctx, t); err != nil {
-		return nil, apperror.InternalServer("failed to publish task created event: " + err.Error())
+		return nil, apperror.ServiceUnavailable("failed to publish task created event: " + err.Error())
 	}
+
+	// 2. Add directly to Redis cache for immediate visibility
+	_ = s.taskCache.AddTask(ctx, t)
 
 	// 3. Send Notification to assignee asynchronously if applicable
 	if t.AssigneeID != "" && t.AssigneeID != userID {
@@ -382,13 +382,13 @@ func (s *service) UpdateFullTask(ctx context.Context, workspaceID string, taskID
 	}
 	t.AssigneeName = assigneeName
 
-	// 1. Update cache for immediate visibility
-	_ = s.taskCache.UpdateTaskMeta(ctx, t)
-
-	// 2. Publish updated event to Kafka
+	// 1. Publish updated event to Kafka
 	if err := s.sendTaskUpdated(ctx, t); err != nil {
-		return nil, apperror.InternalServer("failed to publish task updated event: " + err.Error())
+		return nil, apperror.ServiceUnavailable("failed to publish task updated event: " + err.Error())
 	}
+
+	// 2. Update cache for immediate visibility
+	_ = s.taskCache.UpdateTaskMeta(ctx, t)
 
 	// 3. Send Notification to assignee asynchronously if applicable
 	if t.AssigneeID != "" && t.AssigneeID != userID {
@@ -420,18 +420,18 @@ func (s *service) UpdateTaskStatus(ctx context.Context, workspaceID string, task
 		}
 	}
 
-	// 1. Update cache for immediate visibility
-	_ = s.taskCache.UpdateTaskStatus(ctx, t.ProjectID, taskID, t.Status, status)
-
-	// 2. Publish status update to Kafka
+	// 1. Publish status update to Kafka
 	updatePayload := domain.TaskStatusUpdate{
 		WorkspaceID: workspaceID,
 		TaskID:      taskID,
 		Status:      status,
 	}
 	if err := s.sendTaskStatusUpdated(ctx, updatePayload); err != nil {
-		return apperror.InternalServer("failed to publish task status update event: " + err.Error())
+		return apperror.ServiceUnavailable("failed to publish task status update event: " + err.Error())
 	}
+
+	// 2. Update cache for immediate visibility
+	_ = s.taskCache.UpdateTaskStatus(ctx, t.ProjectID, taskID, t.Status, status)
 
 	// 3. Send Notification to assignee asynchronously if applicable
 	if t.AssigneeID != "" && t.AssigneeID != userID {

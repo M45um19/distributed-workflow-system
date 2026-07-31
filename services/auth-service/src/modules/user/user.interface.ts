@@ -12,6 +12,7 @@ export interface IUserRepository {
   findByEmail(email: string): Promise<IUserDocument | null>;
   findById(id: string): Promise<IUserDocument | null>;
   updateById(id: string, data: Partial<IUser>): Promise<IUserDocument | null>;
+  deleteById(id: string): Promise<boolean>;
 }
 
 export interface UserProfileResponse {

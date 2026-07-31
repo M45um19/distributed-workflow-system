@@ -21,6 +21,7 @@ export interface IFetchNotificationsResponse {
 
 export interface INotificationRepository {
   create(data: INotification): Promise<INotification>;
+  createMany(data: INotification[]): Promise<INotificationDocument[]>;
   fetchLatest(userId: string, limit?: number): Promise<IFetchNotificationsResponse>;
   markAsRead(userId: string, notificationIds: string[]): Promise<void>;
 }

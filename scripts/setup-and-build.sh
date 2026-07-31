@@ -113,6 +113,7 @@ if [[ "$install_monitoring" == "y" ]]; then
         --set chunksCache.enabled=false \
         --set resultsCache.enabled=false \
         --set lokiCanary.enabled=false \
+        --set test.enabled=false \
         --set loki.storage.type=filesystem \
         --set loki.storage.bucketNames.chunks=chunks \
         --set loki.storage.bucketNames.ruler=ruler \

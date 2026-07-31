@@ -142,11 +142,21 @@ The core objective of the project is to provide a seamless collaborative experie
 The workspace and notification services leverage Kafka to support Event-Driven Architecture (EDA), ensuring loose coupling and eventual consistency.
 
 ##### Core Architecture Patterns:
-- **User Snapshot Synchronization (`user-registered` topic)**: When a user registers, the Auth Service publishes a `user-registered` event containing the user's basic profile details. The Workspace Service subscribes to this topic and replicates a local read-only copy of the user profiles (`SyncUserSnapshot` method) to execute fast workspace member joins and project listings without synchronous cross-service HTTP calls.
+- **User Snapshot Synchronization (`user-registered` topic)**: When a user registers, the Auth Service publishes a `user-registered` event containing the user's basic profile details. The Workspace Service and Notification Service subscribe to this topic and replicate local read-only copies of the user profiles (`SyncUserSnapshot` / `syncUserSnapshot` methods) to execute fast joins and notifications without synchronous cross-service HTTP calls.
 - **Session Termination Handling (`user-logout` topic)**: Logging out of a device triggers a `user-logout` event. The Workspace Service listens to this topic and instantly deletes the active login session cached under `session:<userId>:<deviceId>` in Redis, validating logout across all microservices.
-- **Event-Driven Notifications (`send-notification` topic)**: Services publish notification events to trigger delivery. The Notification Service consumes these events and pushes real-time notifications to the client over WebSockets and records the notification history in MongoDB.
+- **Event-Driven Notifications (`send-notification` topic)**: Services publish notification events to trigger delivery. The Notification Service consumes these events and pushes real-time notifications to the client over WebSockets (using Redis adapter pipelined broadcasts) and records the notification history in MongoDB.
 - **Asynchronous Task Creation (`task-created` topic)**: To support high-throughput, write-heavy task ingestion, tasks are not inserted directly into the database. Instead, the creation request generates a UUIDv7, queries the assignee name using a cache-first approach (checking the workspace members cache first, then the user repo database on miss), updates the Redis cache immediately for real-time reads, and publishes the task object to the `task-created` Kafka topic. A background consumer buffers incoming tasks and performs bulk inserts into PostgreSQL in batches of 1,000 tasks or every 2 seconds.
 - **Asynchronous Task Updates (`task-updated` and `task-status-updated` topics)**: Similar to task creation, full task updates (`UpdateFullTask`) and status updates (`UpdateTaskStatus`) write immediately to the Redis cache for zero-latency client-side visibility and publish events to the `task-updated` and `task-status-updated` Kafka topics. Background worker routines consume these topics, batching updates (up to 1,000 items or every 2 seconds), and applying them in bulk to PostgreSQL via optimized batch UPDATE commands to minimize database query overhead.
+
+##### Enterprise-Grade Reliability & Fault Tolerance:
+- **Synchronous Produce & Replication Acknowledgement**: All critical domain event writers are configured to produce synchronously (`async = false` or blocking futures) and require acknowledgement from all partition replicas (`RequiredAcks = RequireAll` in Go / `acks: -1` in Node.js), preventing data loss.
+- **Divide-and-Conquer Recursive Database Fallbacks**:
+  - If a bulk database write (PostgreSQL `sqlx` bulk inserts/updates or MongoDB Mongoose `bulkWrite`) fails due to constraint violations or invalid schema parameters, the services do not fail the entire batch or resort to slow row-by-row iteration.
+  - Instead, the repository/service layer recursively splits the failed sub-batch in half and retries bulk execution on smaller sub-batches.
+  - Sub-batches of size `1` that fail are isolated as "Poisonous Data" and returned to the handler, keeping valid records stored safely.
+- **Service-Specific DLQ Routing & Precise Offsets**:
+  - Isolated poisonous events are routed directly to dedicated Dead Letter Queue (DLQ) topics specific to each microservice (e.g., `task-created-dlq`, `user-registered-workspace-dlq`, and `user-registered-notification-dlq`) with `x-failure-reason` metadata headers.
+  - Kafka consumer offsets are committed (`resolveOffset`) ONLY for successfully saved or successfully isolated (DLQ-routed) messages, while database connection drops are propagated up to trigger consumer re-fetches, preventing offset drift or message loss.
 
 ---
 

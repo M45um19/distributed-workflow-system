@@ -21,31 +21,38 @@ import (
 )
 
 type Container struct {
-	WorkspaceCtrl     *workspace.Controller
-	ProjectCtrl       *project.Controller
-	TaskCtrl          *task.Controller
-	AuthMid           *middleware.AuthMiddleware
-	KafkaWorker             *kafka.Worker
-	KafkaWriter             *kafkaGo.Writer
-	TaskCreatedWriter       *kafkaGo.Writer
-	TaskUpdatedWriter       *kafkaGo.Writer
-	TaskStatusUpdatedWriter *kafkaGo.Writer
-	TemporalWorker          *temporal.Worker
-	TemporalClient          client.Client
+	WorkspaceCtrl              *workspace.Controller
+	ProjectCtrl                *project.Controller
+	TaskCtrl                   *task.Controller
+	AuthMid                    *middleware.AuthMiddleware
+	KafkaWorker                *kafka.Worker
+	KafkaWriter                *kafkaGo.Writer
+	TaskCreatedWriter          *kafkaGo.Writer
+	TaskUpdatedWriter          *kafkaGo.Writer
+	TaskStatusUpdatedWriter    *kafkaGo.Writer
+	TaskCreatedDLQWriter       *kafkaGo.Writer
+	TaskUpdatedDLQWriter       *kafkaGo.Writer
+	TaskStatusUpdatedDLQWriter *kafkaGo.Writer
+	UserRegDLQWriter           *kafkaGo.Writer
+	TemporalWorker             *temporal.Worker
+	TemporalClient             client.Client
 }
 
 func NewContainer(cfg *config.Config, db *sqlx.DB, rdb *redis.Client, authGRPCClient pb.AuthServiceClient, isWorker bool) *Container {
 	userRepo := user.NewRepository(db)
-	userSvc := user.NewService(userRepo)
 
 	wsRepo := workspace.NewRepository(db)
 	projectRepo := project.NewRepository(db)
 	taskRepo := task.NewRepository(db)
 
-	notiWriter := config.NewKafkaWriter(cfg.KafkaBrokers, "send-notification")
-	taskCreatedWriter := config.NewKafkaWriter(cfg.KafkaBrokers, "task-created")
-	taskUpdatedWriter := config.NewKafkaWriter(cfg.KafkaBrokers, "task-updated")
-	taskStatusUpdatedWriter := config.NewKafkaWriter(cfg.KafkaBrokers, "task-status-updated")
+	notiWriter := config.NewKafkaWriter(cfg.KafkaBrokers, "send-notification", true)
+	taskCreatedWriter := config.NewKafkaWriter(cfg.KafkaBrokers, "task-created", false)
+	taskUpdatedWriter := config.NewKafkaWriter(cfg.KafkaBrokers, "task-updated", false)
+	taskStatusUpdatedWriter := config.NewKafkaWriter(cfg.KafkaBrokers, "task-status-updated", false)
+	taskCreatedDLQWriter := config.NewKafkaWriter(cfg.KafkaBrokers, "task-created-dlq", true)
+	taskUpdatedDLQWriter := config.NewKafkaWriter(cfg.KafkaBrokers, "task-updated-dlq", true)
+	taskStatusUpdatedDLQWriter := config.NewKafkaWriter(cfg.KafkaBrokers, "task-status-updated-dlq", true)
+	userRegDLQWriter := config.NewKafkaWriter(cfg.KafkaBrokers, "user-registered-workspace-dlq", true)
 	tempClient := config.ConnectTemporal(cfg.TemporalHost)
 	wsCache := workspace.NewWorkspaceCache(rdb)
 	wsSvc := workspace.NewService(wsRepo, userRepo, tempClient, notiWriter, cfg.FrontendURL, wsCache)
@@ -62,30 +69,34 @@ func NewContainer(cfg *config.Config, db *sqlx.DB, rdb *redis.Client, authGRPCCl
 	authMid := middleware.NewAuthMiddleware(cfg.JWTSecret, rdb, authGRPCClient)
 
 	container := &Container{
-		WorkspaceCtrl:           wsCtrl,
-		ProjectCtrl:             projectCtrl,
-		TaskCtrl:                taskCtrl,
-		AuthMid:                 authMid,
-		TemporalClient:          tempClient,
-		KafkaWriter:             notiWriter,
-		TaskCreatedWriter:       taskCreatedWriter,
-		TaskUpdatedWriter:       taskUpdatedWriter,
-		TaskStatusUpdatedWriter: taskStatusUpdatedWriter,
+		WorkspaceCtrl:              wsCtrl,
+		ProjectCtrl:                projectCtrl,
+		TaskCtrl:                   taskCtrl,
+		AuthMid:                    authMid,
+		TemporalClient:             tempClient,
+		KafkaWriter:                notiWriter,
+		TaskCreatedWriter:          taskCreatedWriter,
+		TaskUpdatedWriter:          taskUpdatedWriter,
+		TaskStatusUpdatedWriter:    taskStatusUpdatedWriter,
+		TaskCreatedDLQWriter:       taskCreatedDLQWriter,
+		TaskUpdatedDLQWriter:       taskUpdatedDLQWriter,
+		TaskStatusUpdatedDLQWriter: taskStatusUpdatedDLQWriter,
+		UserRegDLQWriter:           userRegDLQWriter,
 	}
 
 	if isWorker {
 		emailClient := email.NewGmailClient(cfg.SmtpHost, cfg.SmtpPort, cfg.SmtpFrom, cfg.SmtpPassword, cfg.FrontendURL)
-		userRegHandler := kafka.NewUserRegisteredHandler(userSvc)
+		userRegHandler := kafka.NewUserRegisteredHandler(userRepo, userRegDLQWriter)
 		userLogoutHandler := kafka.NewUserLogoutHandler(rdb)
 		regReader := config.NewKafkaReader(cfg.KafkaBrokers, "user-registered")
 		logoutReader := config.NewKafkaReader(cfg.KafkaBrokers, "user-logout")
-		taskCreatedHandler := kafka.NewTaskCreatedHandler(taskRepo)
+		taskCreatedHandler := kafka.NewTaskCreatedHandler(taskRepo, taskCreatedDLQWriter)
 		taskCreatedReader := config.NewKafkaReader(cfg.KafkaBrokers, "task-created")
 
-		taskUpdatedHandler := kafka.NewTaskUpdatedHandler(taskRepo)
+		taskUpdatedHandler := kafka.NewTaskUpdatedHandler(taskRepo, taskUpdatedDLQWriter)
 		taskUpdatedReader := config.NewKafkaReader(cfg.KafkaBrokers, "task-updated")
 
-		taskStatusUpdatedHandler := kafka.NewTaskStatusUpdatedHandler(taskRepo)
+		taskStatusUpdatedHandler := kafka.NewTaskStatusUpdatedHandler(taskRepo, taskStatusUpdatedDLQWriter)
 		taskStatusUpdatedReader := config.NewKafkaReader(cfg.KafkaBrokers, "task-status-updated")
 
 		kWorker := kafka.NewWorker()

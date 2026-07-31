@@ -13,6 +13,7 @@ const startWorker = async () => {
     await redisService.ping();
 
     await kafkaConfig.connect();
+    await kafkaConfig.connectProducer();
 
     const container = new AppContainer(true);
     socketConfig.initWorker();

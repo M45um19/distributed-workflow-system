@@ -21,6 +21,7 @@ type UserLogoutPayload struct {
 
 type UserRepository interface {
 	UpsertUser(ctx context.Context, u *UserSnapshot) error
+	BulkUpsertUsers(ctx context.Context, users []UserSnapshot) ([]UserSnapshot, error)
 	FindByID(ctx context.Context, id string) (*UserSnapshot, error)
 	FindByEmail(ctx context.Context, email string) (*UserSnapshot, error)
 }

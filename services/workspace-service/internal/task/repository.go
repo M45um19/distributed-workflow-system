@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
+	"strings"
 
 	"github.com/M45um19/distributed-workflow-system/services/workspace-service/internal/domain"
 	"github.com/jmoiron/sqlx"
@@ -179,11 +181,84 @@ func (r *sqlRepository) GetWorkspaceIDByTaskID(ctx context.Context, workspaceID 
 	return wID, err
 }
 
-func (r *sqlRepository) BulkCreate(ctx context.Context, tasks []domain.Task) error {
+func isConnectionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "connection refused") ||
+		strings.Contains(msg, "connection reset") ||
+		strings.Contains(msg, "driver: bad connection") ||
+		strings.Contains(msg, "broken pipe") ||
+		strings.Contains(msg, "network is unreachable") ||
+		strings.Contains(msg, "i/o timeout") ||
+		strings.Contains(msg, "EOF")
+}
+
+func (r *sqlRepository) BulkCreate(ctx context.Context, tasks []domain.Task) ([]domain.Task, error) {
 	if len(tasks) == 0 {
-		return nil
+		return nil, nil
 	}
 
+	err := r.bulkCreateBatch(ctx, tasks)
+	if err == nil {
+		return nil, nil
+	}
+
+	if isConnectionError(err) {
+		return nil, err
+	}
+
+	log.Printf("BulkCreate of full batch failed (%v), starting recursive divide-and-conquer split", err)
+
+	failedTasks, err := r.recursiveCreate(ctx, tasks)
+	if err != nil {
+		return nil, err
+	}
+
+	return failedTasks, nil
+}
+
+func (r *sqlRepository) recursiveCreate(ctx context.Context, tasks []domain.Task) ([]domain.Task, error) {
+	if len(tasks) == 0 {
+		return nil, nil
+	}
+
+	err := r.bulkCreateBatch(ctx, tasks)
+	if err == nil {
+		return nil, nil
+	}
+
+	if isConnectionError(err) {
+		return nil, err
+	}
+
+	if len(tasks) == 1 {
+		log.Printf("Poisonous task detected during insert: %s (Error: %v)", tasks[0].ID, err)
+		return tasks, nil
+	}
+
+	mid := len(tasks) / 2
+	left := tasks[:mid]
+	right := tasks[mid:]
+
+	var failedLeft, failedRight []domain.Task
+	var leftErr, rightErr error
+
+	failedLeft, leftErr = r.recursiveCreate(ctx, left)
+	if leftErr != nil {
+		return nil, leftErr
+	}
+
+	failedRight, rightErr = r.recursiveCreate(ctx, right)
+	if rightErr != nil {
+		return nil, rightErr
+	}
+
+	return append(failedLeft, failedRight...), nil
+}
+
+func (r *sqlRepository) bulkCreateBatch(ctx context.Context, tasks []domain.Task) error {
 	numCols := 10
 	query := `INSERT INTO tasks (id, workspace_id, project_id, title, description, status, priority, assignee_id, deadline, created_at) VALUES `
 	
@@ -219,11 +294,70 @@ func (r *sqlRepository) BulkCreate(ctx context.Context, tasks []domain.Task) err
 	return err
 }
 
-func (r *sqlRepository) BulkUpdate(ctx context.Context, tasks []domain.Task) error {
+func (r *sqlRepository) BulkUpdate(ctx context.Context, tasks []domain.Task) ([]domain.Task, error) {
 	if len(tasks) == 0 {
-		return nil
+		return nil, nil
 	}
 
+	err := r.bulkUpdateBatch(ctx, tasks)
+	if err == nil {
+		return nil, nil
+	}
+
+	if isConnectionError(err) {
+		return nil, err
+	}
+
+	log.Printf("BulkUpdate of full batch failed (%v), starting recursive divide-and-conquer split", err)
+
+	failedTasks, err := r.recursiveUpdate(ctx, tasks)
+	if err != nil {
+		return nil, err
+	}
+
+	return failedTasks, nil
+}
+
+func (r *sqlRepository) recursiveUpdate(ctx context.Context, tasks []domain.Task) ([]domain.Task, error) {
+	if len(tasks) == 0 {
+		return nil, nil
+	}
+
+	err := r.bulkUpdateBatch(ctx, tasks)
+	if err == nil {
+		return nil, nil
+	}
+
+	if isConnectionError(err) {
+		return nil, err
+	}
+
+	if len(tasks) == 1 {
+		log.Printf("Poisonous task update detected: %s (Error: %v)", tasks[0].ID, err)
+		return tasks, nil
+	}
+
+	mid := len(tasks) / 2
+	left := tasks[:mid]
+	right := tasks[mid:]
+
+	var failedLeft, failedRight []domain.Task
+	var leftErr, rightErr error
+
+	failedLeft, leftErr = r.recursiveUpdate(ctx, left)
+	if leftErr != nil {
+		return nil, leftErr
+	}
+
+	failedRight, rightErr = r.recursiveUpdate(ctx, right)
+	if rightErr != nil {
+		return nil, rightErr
+	}
+
+	return append(failedLeft, failedRight...), nil
+}
+
+func (r *sqlRepository) bulkUpdateBatch(ctx context.Context, tasks []domain.Task) error {
 	numCols := 7
 	query := `UPDATE tasks AS t SET 
 		title = u.title,
@@ -266,11 +400,70 @@ func (r *sqlRepository) BulkUpdate(ctx context.Context, tasks []domain.Task) err
 	return err
 }
 
-func (r *sqlRepository) BulkUpdateStatus(ctx context.Context, updates []domain.TaskStatusUpdate) error {
+func (r *sqlRepository) BulkUpdateStatus(ctx context.Context, updates []domain.TaskStatusUpdate) ([]domain.TaskStatusUpdate, error) {
 	if len(updates) == 0 {
-		return nil
+		return nil, nil
 	}
 
+	err := r.bulkUpdateStatusBatch(ctx, updates)
+	if err == nil {
+		return nil, nil
+	}
+
+	if isConnectionError(err) {
+		return nil, err
+	}
+
+	log.Printf("BulkUpdateStatus of full batch failed (%v), starting recursive divide-and-conquer split", err)
+
+	failedUpdates, err := r.recursiveUpdateStatus(ctx, updates)
+	if err != nil {
+		return nil, err
+	}
+
+	return failedUpdates, nil
+}
+
+func (r *sqlRepository) recursiveUpdateStatus(ctx context.Context, updates []domain.TaskStatusUpdate) ([]domain.TaskStatusUpdate, error) {
+	if len(updates) == 0 {
+		return nil, nil
+	}
+
+	err := r.bulkUpdateStatusBatch(ctx, updates)
+	if err == nil {
+		return nil, nil
+	}
+
+	if isConnectionError(err) {
+		return nil, err
+	}
+
+	if len(updates) == 1 {
+		log.Printf("Poisonous task status update detected: %s (Error: %v)", updates[0].TaskID, err)
+		return updates, nil
+	}
+
+	mid := len(updates) / 2
+	left := updates[:mid]
+	right := updates[mid:]
+
+	var failedLeft, failedRight []domain.TaskStatusUpdate
+	var leftErr, rightErr error
+
+	failedLeft, leftErr = r.recursiveUpdateStatus(ctx, left)
+	if leftErr != nil {
+		return nil, leftErr
+	}
+
+	failedRight, rightErr = r.recursiveUpdateStatus(ctx, right)
+	if rightErr != nil {
+		return nil, rightErr
+	}
+
+	return append(failedLeft, failedRight...), nil
+}
+
+func (r *sqlRepository) bulkUpdateStatusBatch(ctx context.Context, updates []domain.TaskStatusUpdate) error {
 	numCols := 3
 	query := `UPDATE tasks AS t SET 
 		status = u.status
