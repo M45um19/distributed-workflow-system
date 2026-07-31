@@ -26,4 +26,9 @@ export class UserRepository implements IUserRepository {
   updateById(id: string, data: Partial<IUser>): Promise<IUserDocument | null> {
     return User.findByIdAndUpdate(id, data, { new: true, runValidators: true }).exec();
   }
+
+  async deleteById(id: string): Promise<boolean> {
+    const result = await User.deleteOne({ _id: id }).exec();
+    return result.deletedCount > 0;
+  }
 }

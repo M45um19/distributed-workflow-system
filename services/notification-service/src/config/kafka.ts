@@ -1,4 +1,4 @@
-import { Kafka, Consumer, logLevel } from 'kafkajs';
+import { Kafka, Consumer, Producer, logLevel } from 'kafkajs';
 
 import { env } from './env.js';
 
@@ -11,10 +11,13 @@ export interface IKafkaConsumer {
 class KafkaConfig {
   private kafka: Kafka;
   private consumer: Consumer;
+  private producer: Producer;
   private isConnected: boolean;
+  private isProducerConnected: boolean;
 
   constructor() {
     this.isConnected = false;
+    this.isProducerConnected = false;
     const brokers = env.KAFKA_BROKERS ? env.KAFKA_BROKERS.split(',') : [];
 
     if (brokers.length === 0) {
@@ -30,10 +33,16 @@ class KafkaConfig {
     this.consumer = this.kafka.consumer({
       groupId: 'notification-service-group',
     });
+
+    this.producer = this.kafka.producer();
   }
 
   getConsumer(): Consumer {
     return this.consumer;
+  }
+
+  getProducer(): Producer {
+    return this.producer;
   }
 
   async connect(): Promise<void> {
@@ -49,6 +58,19 @@ class KafkaConfig {
     }
   }
 
+  async connectProducer(): Promise<void> {
+    if (this.isProducerConnected) return;
+    try {
+      await this.producer.connect();
+      this.isProducerConnected = true;
+      console.info('Kafka Producer connected successfully');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown Kafka error';
+      console.error('Kafka Producer connection failed:', errorMessage);
+      throw new Error(`Kafka producer connection could not be established: ${errorMessage}`);
+    }
+  }
+
   async disconnect(): Promise<void> {
     try {
       await this.consumer.disconnect();
@@ -56,6 +78,16 @@ class KafkaConfig {
       console.info('Kafka Consumer disconnected');
     } catch (error) {
       console.error('Kafka Consumer disconnect error:', error);
+    }
+
+    if (this.isProducerConnected) {
+      try {
+        await this.producer.disconnect();
+        this.isProducerConnected = false;
+        console.info('Kafka Producer disconnected');
+      } catch (error) {
+        console.error('Kafka Producer disconnect error:', error);
+      }
     }
   }
 }

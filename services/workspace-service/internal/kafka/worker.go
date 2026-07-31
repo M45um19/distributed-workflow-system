@@ -14,6 +14,10 @@ type KafkaEventHandler interface {
 	Handle(ctx context.Context, msg kafka.Message)
 }
 
+type KafkaLoopHandler interface {
+	RunLoop(ctx context.Context, reader *kafka.Reader)
+}
+
 type Worker struct {
 	readers  []*kafka.Reader
 	handlers map[string]KafkaEventHandler
@@ -39,8 +43,14 @@ func (w *Worker) Start(ctx context.Context) {
 			topic := reader.Config().Topic
 			log.Printf("Kafka Background Worker started for topic: %s", topic)
 
+			handler := w.handlers[topic]
+			if loopHandler, ok := handler.(KafkaLoopHandler); ok {
+				loopHandler.RunLoop(ctx, reader)
+				return
+			}
+
 			for {
-				msg, err := reader.ReadMessage(ctx)
+				msg, err := reader.FetchMessage(ctx)
 				if err != nil {
 					if errors.Is(err, context.Canceled) || errors.Is(err, io.ErrClosedPipe) {
 						log.Printf("Kafka worker loop stopped for topic: %s", topic)
@@ -50,9 +60,10 @@ func (w *Worker) Start(ctx context.Context) {
 					return
 				}
 
-				if handler, ok := w.handlers[msg.Topic]; ok {
+				handler.Handle(ctx, msg)
 
-					handler.Handle(context.Background(), msg)
+				if err := reader.CommitMessages(ctx, msg); err != nil {
+					log.Printf("Kafka Commit Error (%s): %v", topic, err)
 				}
 			}
 		}(r)

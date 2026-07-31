@@ -17,5 +17,6 @@ export interface IUserDocument extends Omit<Document, '_id'>, IUser {
 
 export interface IUserRepository {
   saveSnapshot(data: Partial<IUser>): Promise<IUserDocument>;
+  bulkSaveSnapshots(data: Partial<IUser>[]): Promise<Partial<IUser>[]>;
   findById(id: string): Promise<IUserDocument | null>;
 }

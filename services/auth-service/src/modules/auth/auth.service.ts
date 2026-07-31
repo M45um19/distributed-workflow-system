@@ -49,11 +49,18 @@ export class AuthService implements IAuthService {
       avatar_url: newUser.avatar_url
     };
 
-    await kafkaConfig.sendMessage('user-registered', {
-      ...userResult,
-      role: newUser.role,
-      createdAt: newUser.created_at
-    });
+    try {
+      await kafkaConfig.sendMessage('user-registered', {
+        ...userResult,
+        role: newUser.role,
+        createdAt: newUser.created_at
+      });
+    } catch (error: unknown) {
+      await this.userRepository.deleteById(newUser._id.toString());
+      const errorMessage = error instanceof Error ? error.message : 'Unknown Kafka error';
+      console.error(`Registration rolled back due to Kafka failure: ${errorMessage}`);
+      throw new AppError('Service Unavailable', 503);
+    }
 
     const accessToken = jwt.sign(
       { userId: newUser._id.toString(), deviceId: deviceId },
