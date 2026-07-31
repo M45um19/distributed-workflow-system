@@ -1,4 +1,5 @@
 
+import { kafkaConfig } from './config/kafka.js';
 import { NotificationHandler } from './kafka/handlers/notification_handler.js';
 import { UserLogoutHandler } from './kafka/handlers/user_logout.handler.js';
 import { UserRegisteredHandler } from './kafka/handlers/user_registered.handler.js';
@@ -29,8 +30,9 @@ export class AppContainer {
 
     if (isWorker) {
       const kWorker = new KafkaWorker();
+      const producer = kafkaConfig.getProducer();
 
-      const userRegisteredHandler = new UserRegisteredHandler(this.userService);
+      const userRegisteredHandler = new UserRegisteredHandler(this.userService, producer);
       kWorker.addTopicHandler('user-registered', userRegisteredHandler);
 
       const userLogoutHandler = new UserLogoutHandler();

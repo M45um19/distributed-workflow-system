@@ -20,13 +20,13 @@ func NewKafkaReader(brokers string, topic string) *kafka.Reader {
 	})
 }
 
-func NewKafkaWriter(brokers string, topic string) *kafka.Writer {
+func NewKafkaWriter(brokers string, topic string, async bool) *kafka.Writer {
 	return &kafka.Writer{
 		Addr:         kafka.TCP(strings.Split(brokers, ",")...),
 		Topic:        topic,
 		Balancer:     &kafka.LeastBytes{},
-		RequiredAcks: kafka.RequireOne,
-		Async:        true,
+		RequiredAcks: kafka.RequireAll,
+		Async:        async,
 		BatchSize:    1,
 		BatchTimeout: 10 * time.Millisecond,
 		WriteTimeout: 5 * time.Second,

@@ -44,6 +44,33 @@ func main() {
 	container.KafkaWorker.Stop()
 	log.Println("Kafka Worker components stopped.")
 
+	log.Println("Closing all Kafka writers...")
+	if container.KafkaWriter != nil {
+		container.KafkaWriter.Close()
+	}
+	if container.TaskCreatedWriter != nil {
+		container.TaskCreatedWriter.Close()
+	}
+	if container.TaskUpdatedWriter != nil {
+		container.TaskUpdatedWriter.Close()
+	}
+	if container.TaskStatusUpdatedWriter != nil {
+		container.TaskStatusUpdatedWriter.Close()
+	}
+	if container.TaskCreatedDLQWriter != nil {
+		container.TaskCreatedDLQWriter.Close()
+	}
+	if container.TaskUpdatedDLQWriter != nil {
+		container.TaskUpdatedDLQWriter.Close()
+	}
+	if container.TaskStatusUpdatedDLQWriter != nil {
+		container.TaskStatusUpdatedDLQWriter.Close()
+	}
+	if container.UserRegDLQWriter != nil {
+		container.UserRegDLQWriter.Close()
+	}
+	log.Println("Kafka writers closed safely.")
+
 	if container.TemporalClient != nil {
 		container.TemporalClient.Close()
 		log.Println("Temporal Client closed.")

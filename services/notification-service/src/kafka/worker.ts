@@ -25,14 +25,26 @@ export class KafkaWorker {
     }
 
     await consumer.run({
-      eachMessage: async ({ topic, message }) => {
+      eachMessage: async ({ topic, partition, message }) => {
         const value = message.value ? message.value.toString() : null;
         const handler = this.handlers.get(topic);
+        if (!handler) return;
 
-        if (handler) {
+        // Delegate batch buffering or process immediately
+        if (typeof (handler as any).handleBatchMessage === 'function') {
+          const offset = message.offset;
+          const resolve = async () => {
+            const nextOffset = (BigInt(offset) + 1n).toString();
+            await consumer.commitOffsets([
+              { topic, partition, offset: nextOffset }
+            ]);
+          };
+          await (handler as any).handleBatchMessage(value, resolve);
+        } else {
+          // Standard one-by-one handler
           await handler.handle(value);
         }
-      },
+      }
     });
   }
 }

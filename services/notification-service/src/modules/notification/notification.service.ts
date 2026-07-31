@@ -1,6 +1,11 @@
 import { socketConfig } from '../../config/socket.js';
 
-import { IFetchNotificationsResponse, INotification, INotificationRepository } from './notification.interface.js';
+import { 
+  IFetchNotificationsResponse, 
+  INotification, 
+  INotificationDocument,
+  INotificationRepository 
+} from './notification.interface.js';
 
 export class NotificationService {
   constructor(private readonly notificationRepository: INotificationRepository) { }
@@ -13,6 +18,59 @@ export class NotificationService {
 
     console.warn(`[NotificationService] Live notification pushed to user: ${data.userId}`);
     return notification;
+  }
+
+  public async sendNotificationsBulk(dataList: INotification[]): Promise<INotificationDocument[]> {
+    const notifications = await this.notificationRepository.createMany(dataList);
+
+    try {
+      const io = socketConfig.getIO();
+      const adapter = io.of('/').adapter as any;
+
+      if (adapter && adapter.pubClient) {
+        const pubClient = adapter.pubClient;
+        const parser = adapter.parser;
+        const channelPrefix = adapter.channel;
+        const uid = adapter.uid;
+
+        const pipeline = pubClient.pipeline();
+
+        for (const n of notifications) {
+          const packet = {
+            type: 2,
+            data: ['notification-received', n],
+            nsp: '/'
+          };
+          const rawOpts = {
+            rooms: [`user_${n.userId}`],
+            except: [],
+            flags: {}
+          };
+
+          const msg = parser.encode([uid, packet, rawOpts]);
+          const channel = `${channelPrefix}user_${n.userId}#`;
+
+          pipeline.publish(channel, msg);
+        }
+
+        await pipeline.exec();
+        console.warn(`[NotificationService] Bulk live notifications pushed: ${notifications.length} events via Redis pipeline.`);
+      } else {
+        const io = socketConfig.getIO();
+        for (const n of notifications) {
+          io.to(`user_${n.userId}`).emit('notification-received', n);
+        }
+        console.warn(`[NotificationService] Bulk live notifications pushed: ${notifications.length} events (socket.io fallback).`);
+      }
+    } catch (redisError) {
+      console.error(`[NotificationService] Redis pipelined broadcast failed: ${redisError}`);
+      const io = socketConfig.getIO();
+      for (const n of notifications) {
+        io.to(`user_${n.userId}`).emit('notification-received', n);
+      }
+    }
+
+    return notifications;
   }
 
   public async getUserNotifications(userId: string): Promise<IFetchNotificationsResponse> {
