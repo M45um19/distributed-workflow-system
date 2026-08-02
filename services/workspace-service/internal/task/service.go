@@ -265,9 +265,40 @@ func (s *service) GetTasksByProject(ctx context.Context, workspaceID string, pro
 			if err != nil {
 				return nil, nil, err
 			}
-			result[st] = dbTasks
 
-			_ = s.taskCache.SetColumnCache(ctx, projectID, st, dbTasks)
+			// Pre-load task metadata from cache to check for newer states/statuses
+			var filteredTasks []domain.Task
+			if len(dbTasks) > 0 {
+				dbTaskIDs := make([]string, len(dbTasks))
+				for i, dt := range dbTasks {
+					dbTaskIDs[i] = dt.ID
+				}
+				cachedTasks, _, err := s.taskCache.GetTaskMetas(ctx, dbTaskIDs)
+				if err == nil && len(cachedTasks) > 0 {
+					cachedMap := make(map[string]domain.Task)
+					for _, ct := range cachedTasks {
+						cachedMap[ct.ID] = ct
+					}
+					for _, dt := range dbTasks {
+						if ct, found := cachedMap[dt.ID]; found {
+							if ct.Status != st {
+								continue
+							}
+							filteredTasks = append(filteredTasks, ct)
+						} else {
+							filteredTasks = append(filteredTasks, dt)
+						}
+					}
+				} else {
+					filteredTasks = dbTasks
+				}
+			} else {
+				filteredTasks = []domain.Task{}
+			}
+
+			result[st] = filteredTasks
+
+			_ = s.taskCache.SetColumnCache(ctx, projectID, st, filteredTasks)
 
 			if len(dbTasks) == limit {
 				nextCursors[st] = dbTasks[len(dbTasks)-1].ID
@@ -326,7 +357,15 @@ func (s *service) GetTasksByProject(ctx context.Context, workspaceID string, pro
 			}
 		}
 
-		result[st] = orderedTasks
+		// Filter out any tasks that have a different status in their cache metadata
+		filteredOrderedTasks := make([]domain.Task, 0, len(orderedTasks))
+		for _, t := range orderedTasks {
+			if t.Status == st {
+				filteredOrderedTasks = append(filteredOrderedTasks, t)
+			}
+		}
+
+		result[st] = filteredOrderedTasks
 
 		if len(taskIDs) == limit {
 			nextCursors[st] = taskIDs[len(taskIDs)-1]
@@ -430,7 +469,16 @@ func (s *service) UpdateTaskStatus(ctx context.Context, workspaceID string, task
 		return apperror.ServiceUnavailable("failed to publish task status update event: " + err.Error())
 	}
 
-	// 2. Update cache for immediate visibility
+	// 2. Pre-warm target column cache in Redis if it does not exist
+	_, _, exists, err := s.taskCache.GetTaskIDs(ctx, t.ProjectID, status, 1, "")
+	if err == nil && !exists {
+		dbTasks, err := s.taskRepo.GetByProjectIDAndStatusCursor(ctx, workspaceID, t.ProjectID, status, 100, "")
+		if err == nil {
+			_ = s.taskCache.SetColumnCache(ctx, t.ProjectID, status, dbTasks)
+		}
+	}
+
+	// 3. Update cache for immediate visibility
 	_ = s.taskCache.UpdateTaskStatus(ctx, t.ProjectID, taskID, t.Status, status)
 
 	// 3. Send Notification to assignee asynchronously if applicable
