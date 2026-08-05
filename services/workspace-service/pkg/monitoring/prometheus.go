@@ -29,8 +29,8 @@ func MetricsMiddleware() gin.HandlerFunc {
 		c.Next()
 
 		routePattern := c.FullPath()
-		if routePattern == "" {
-			routePattern = c.Request.URL.Path
+		if routePattern == "" || c.Writer.Status() == 404 {
+			routePattern = "NOT_FOUND"
 		}
 
 		statusCode := strconv.Itoa(c.Writer.Status())
