@@ -3,6 +3,7 @@ package monitoring
 import (
 	"context"
 	"log"
+	"strconv"
 	"strings"
 
 	"go.opentelemetry.io/otel"
@@ -13,7 +14,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 )
 
-func InitTracer(serviceName string, collectorURL string) func() {
+func InitTracer(serviceName string, collectorURL string, traceRatio string) func() {
 	ctx := context.Background()
 
 	// Strip http:// or https:// scheme because otlptracegrpc.WithEndpoint expects a raw host:port
@@ -36,9 +37,17 @@ func InitTracer(serviceName string, collectorURL string) func() {
 		log.Fatalf("failed to create resource: %v", err)
 	}
 
+	ratio := 0.1
+	if traceRatio != "" {
+		if parsed, err := strconv.ParseFloat(traceRatio, 64); err == nil {
+			ratio = parsed
+		}
+	}
+
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
 		sdktrace.WithResource(res),
+		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(ratio))),
 	)
 
 	otel.SetTracerProvider(tp)

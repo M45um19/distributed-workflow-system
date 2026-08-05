@@ -4,6 +4,7 @@ import { GrpcInstrumentation } from '@opentelemetry/instrumentation-grpc';
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
 import { Resource } from '@opentelemetry/resources';
 import { NodeSDK } from '@opentelemetry/sdk-node';
+import { BatchSpanProcessor, ParentBasedSampler, TraceIdRatioBasedSampler } from '@opentelemetry/sdk-trace-base';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
 
 import { env } from '../config/env.js';
@@ -21,7 +22,10 @@ const traceExporter = new OTLPTraceExporter({
 
 const sdk = new NodeSDK({
   resource: resource,
-  traceExporter: traceExporter,
+  spanProcessor: new BatchSpanProcessor(traceExporter),
+  sampler: new ParentBasedSampler({
+    root: new TraceIdRatioBasedSampler(parseFloat(env.OTEL_TRACE_RATIO || '0.1')),
+  }),
   instrumentations: [
     new GrpcInstrumentation(),
     new HttpInstrumentation(),

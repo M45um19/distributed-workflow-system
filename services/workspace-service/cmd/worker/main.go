@@ -18,7 +18,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	cleanup := monitoring.InitTracer(cfg.ServiceName, cfg.OtelExporterOtlpEndpoint)
+	cleanup := monitoring.InitTracer(cfg.ServiceName, cfg.OtelExporterOtlpEndpoint, cfg.OtelTraceRatio)
 	defer cleanup()
 
 	db, err := config.ConnectDB(cfg)

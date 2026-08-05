@@ -28,6 +28,7 @@ type Config struct {
 	OtelExporterOtlpEndpoint string `mapstructure:"OTEL_EXPORTER_OTLP_ENDPOINT"`
 	ServiceName              string `mapstructure:"SERVICE_NAME"`
 	FrontendURL              string `mapstructure:"FRONTEND_URL"`
+	OtelTraceRatio           string `mapstructure:"OTEL_TRACE_RATIO"`
 }
 
 func LoadConfig() (config *Config, err error) {

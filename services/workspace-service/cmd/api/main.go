@@ -33,7 +33,7 @@ func main() {
 		log.Fatalf("Config load failed: %v", err)
 	}
 
-	cleanup := monitoring.InitTracer(cfg.ServiceName, cfg.OtelExporterOtlpEndpoint)
+	cleanup := monitoring.InitTracer(cfg.ServiceName, cfg.OtelExporterOtlpEndpoint, cfg.OtelTraceRatio)
 	defer cleanup()
 
 	db, err := config.ConnectDB(cfg)
