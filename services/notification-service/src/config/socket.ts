@@ -1,6 +1,6 @@
 import { Server as HttpServer } from 'http';
 
-import { createAdapter } from '@socket.io/redis-adapter';
+import { createAdapter } from '@socket.io/redis-streams-adapter';
 import jwt from 'jsonwebtoken';
 import { Server, Socket } from 'socket.io';
 
@@ -45,11 +45,11 @@ class SocketConfig implements ISocketConfig {
                 origin: '*',
                 methods: ['GET', 'POST'],
             },
+            transports: ['websocket'],
         });
 
-        const pubClient = redisService.getClient();
-        const subClient = pubClient.duplicate();
-        this.io.adapter(createAdapter(pubClient, subClient));
+        const redisClient = redisService.getClient();
+        this.io.adapter(createAdapter(redisClient));
 
         this.io.use((socket: AuthenticatedSocket, next) => {
             this.validateSocketToken(socket, next);
@@ -60,11 +60,10 @@ class SocketConfig implements ISocketConfig {
     }
 
     public initWorker(): void {
-        const pubClient = redisService.getClient();
-        const subClient = pubClient.duplicate();
+        const redisClient = redisService.getClient();
 
         this.io = new Server();
-        this.io.adapter(createAdapter(pubClient, subClient));
+        this.io.adapter(createAdapter(redisClient));
     }
 
     public getIO(): Server {

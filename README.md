@@ -107,57 +107,6 @@ The core objective of the project is to provide a seamless collaborative experie
 #### Events Produced
 - `send-notification`: Triggered when need to send a notification.
 
-#### Redis Caching Architecture
-
-##### Why use Redis in Workspace & Project:
-- **High-Frequency Read Optimization**: Workspace listings, membership roles, and project lists are highly read-intensive. Redis shields the PostgreSQL database from high query volumes.
-- **Lexicographical Pagination**: Allows paginating workspaces and projects chronologically descending directly inside Redis without transferring the entire set of IDs to the Go application memory.
-- **Fast Authorization Checks**: Workspace roles are cached to evaluate permissions instantly during API handler authorization.
-
-##### Workspace Caching:
-- **Workspace Metadata Cache (`workspace:<workspaceId>:meta`)**: Redis Hash storing core workspace fields with a 24-hour TTL.
-- **Lexicographical ZSET Indexing (`user:<userId>:workspaces:owned` and `user:<userId>:workspaces:joined`)**: Stored as Sorted Sets where all members have a score of `0`. Redis sorts them lexicographically. Since IDs are UUIDv7, lexicographical sorting corresponds to chronological sorting.
-  - Pagination fetches exactly `limit` IDs using `ZRevRangeByLex` with exclusive boundary offsets (`Max: "(" + cursor`).
-- **Workspace Role Cache (`workspace:<workspaceId>:roles`)**: Hash mapping `user_id -> role` for fast permission lookup.
-- **Workspace Members Cache (`workspace:<workspaceId>:members`)**: Hash storing JSON strings of `WorkspaceMemberResponse` indexed by `user_id` for quick collection retrieval and single member updates.
-- **Consistency & Invalidation**: We follow the Cache-Aside pattern. On creating workspaces or accepting invites, the corresponding ZSET caches are dynamically appended (`ZAdd`) and hashes updated/invalidated to guarantee strong read-after-write consistency.
-
-##### Project Caching:
-- **Project Metadata Cache (`project:<projectId>:meta`)**: Redis Hash storing core project fields (`id`, `workspace_id`, `name`, `description`, `status`, `created_by`, `created_at`) with a 24-hour TTL.
-- **Workspace Projects ZSET Indexing (`workspace:<workspaceId>:projects`)**: Sorted set storing project IDs in a workspace with score `0`. Redis sorted sets sort members lexicographically (matching UUIDv7 time sorting).
-  - Paginated queries fetch specific pages using `ZRevRangeByLex` with cursor boundaries (`Max: "(" + cursor`).
-- **Consistency & Invalidation**: We follow the Cache-Aside pattern. On creating a project, the metadata is cached and the ID is added to the ZSET list (`ZAdd`). If a cache miss occurs, the system queries the database (fetching up to 1000 items) to repopulate both the metadata hash and ZSET list. Updates or invalidations delete the list keys from Redis to trigger a reload.
-
-##### Task Caching:
-- **Task Metadata Cache (`task:<taskId>:data`)**: Redis Hash storing detailed task fields (`id`, `workspace_id`, `project_id`, `title`, `description`, `status`, `priority`, `assignee_id`, `assignee_name`, `deadline`, `created_at`) with a 3-day TTL.
-- **Project Column ZSET Indexing (`project:<projectId>:col:<columnName>`)**: Sorted set storing task IDs inside a project's column.
-  - **UUIDv7 Scoring**: Scores are set using the 48-bit millisecond timestamp extracted from the task's UUIDv7 ID, maintaining chronological sorting.
-  - **Pruning**: Restricts the column ZSET to only store the latest 100 task IDs using `ZRemRangeByRank` to prune older tasks.
-  - **Cursor-based Pagination**: Fetches paginated tasks using `ZRevRangeByScore` based on the score/timestamp extracted from the cursor task ID (`Max: "(" + cursorScore`).
-  - **Empty Column Caching**: Inserts a dummy `__empty__` member with score `-1` when a column is empty, allowing cache hits for empty columns and avoiding database roundtrips.
-- **Consistency & Invalidation**: We follow the Cache-Aside pattern. Creating or editing a task populates the metadata Hash and ZSET (if it exists) with a 3-day TTL. Moving a task's column (PATCH status) triggers an atomic Redis transaction (`TxPipeline` / `MULTI`/`EXEC` block) to update the status in the metadata Hash, remove the task ID from the old column ZSET, add it to the new column ZSET, and prune the new ZSET.
-
-#### Kafka Architecture
-
-The workspace and notification services leverage Kafka to support Event-Driven Architecture (EDA), ensuring loose coupling and eventual consistency.
-
-##### Core Architecture Patterns:
-- **User Snapshot Synchronization (`user-registered` topic)**: When a user registers, the Auth Service publishes a `user-registered` event containing the user's basic profile details. The Workspace Service and Notification Service subscribe to this topic and replicate local read-only copies of the user profiles (`SyncUserSnapshot` / `syncUserSnapshot` methods) to execute fast joins and notifications without synchronous cross-service HTTP calls.
-- **Session Termination Handling (`user-logout` topic)**: Logging out of a device triggers a `user-logout` event. The Workspace Service listens to this topic and instantly deletes the active login session cached under `session:<userId>:<deviceId>` in Redis, validating logout across all microservices.
-- **Event-Driven Notifications (`send-notification` topic)**: Services publish notification events to trigger delivery. The Notification Service consumes these events and pushes real-time notifications to the client over WebSockets (using Redis adapter pipelined broadcasts) and records the notification history in MongoDB.
-- **Asynchronous Task Creation (`task-created` topic)**: To support high-throughput, write-heavy task ingestion, tasks are not inserted directly into the database. Instead, the creation request generates a UUIDv7, queries the assignee name using a cache-first approach (checking the workspace members cache first, then the user repo database on miss), updates the Redis cache immediately for real-time reads, and publishes the task object to the `task-created` Kafka topic. A background consumer buffers incoming tasks and performs bulk inserts into PostgreSQL in batches of 1,000 tasks or every 2 seconds.
-- **Asynchronous Task Updates (`task-updated` and `task-status-updated` topics)**: Similar to task creation, full task updates (`UpdateFullTask`) and status updates (`UpdateTaskStatus`) write immediately to the Redis cache for zero-latency client-side visibility and publish events to the `task-updated` and `task-status-updated` Kafka topics. Background worker routines consume these topics, batching updates (up to 1,000 items or every 2 seconds), and applying them in bulk to PostgreSQL via optimized batch UPDATE commands to minimize database query overhead.
-
-##### Enterprise-Grade Reliability & Fault Tolerance:
-- **Synchronous Produce & Replication Acknowledgement**: All critical domain event writers are configured to produce synchronously (`async = false` or blocking futures) and require acknowledgement from all partition replicas (`RequiredAcks = RequireAll` in Go / `acks: -1` in Node.js), preventing data loss.
-- **Divide-and-Conquer Recursive Database Fallbacks**:
-  - If a bulk database write (PostgreSQL `sqlx` bulk inserts/updates or MongoDB Mongoose `bulkWrite`) fails due to constraint violations or invalid schema parameters, the services do not fail the entire batch or resort to slow row-by-row iteration.
-  - Instead, the repository/service layer recursively splits the failed sub-batch in half and retries bulk execution on smaller sub-batches.
-  - Sub-batches of size `1` that fail are isolated as "Poisonous Data" and returned to the handler, keeping valid records stored safely.
-- **Service-Specific DLQ Routing & Precise Offsets**:
-  - Isolated poisonous events are routed directly to dedicated Dead Letter Queue (DLQ) topics specific to each microservice (e.g., `task-created-dlq`, `user-registered-workspace-dlq`, and `user-registered-notification-dlq`) with `x-failure-reason` metadata headers.
-  - Kafka consumer offsets are committed (`resolveOffset`) ONLY for successfully saved or successfully isolated (DLQ-routed) messages, while database connection drops are propagated up to trigger consumer re-fetches, preventing offset drift or message loss.
-
 ---
 
 ### 3. Notification Service (Node.js)
@@ -179,14 +128,77 @@ The workspace and notification services leverage Kafka to support Event-Driven A
 
 ---
 
-## Kafka Events
+## Redis Caching Architecture
 
-- user-registered → Auth → all service (Snapshot sync)
-- user-logout → Auth → all service (for delete login session)
-- send-notification → all service → notification
-- task-created → Workspace → Workspace (async bulk task creation)
-- task-updated → Workspace → Workspace (async bulk task updates)
-- task-status-updated → Workspace → Workspace (async bulk task status updates)
+### Why use Redis:
+- **High-Frequency Read Optimization**: Workspace listings, membership roles, and project lists are highly read-intensive. Redis shields the databases from high query volumes.
+- **Lexicographical Pagination**: Allows paginating workspaces and projects chronologically descending directly inside Redis without transferring the entire set of IDs to the Go application memory.
+- **Fast Authorization Checks**: Workspace roles are cached to evaluate permissions instantly during API handler authorization.
+- **Real-Time Notification Delivery**: Serves as the transport layer for horizontally scaling Socket.io servers across multiple containers via the Redis Streams adapter.
+
+### Workspace Caching:
+- **Workspace Metadata Cache (`workspace:<workspaceId>:meta`)**: Redis Hash storing core workspace fields with a 24-hour TTL.
+- **Lexicographical ZSET Indexing (`user:<userId>:workspaces:owned` and `user:<userId>:workspaces:joined`)**: Stored as Sorted Sets where all members have a score of `0`. Redis sorts them lexicographically. Since IDs are UUIDv7, lexicographical sorting corresponds to chronological sorting.
+  - Pagination fetches exactly `limit` IDs using `ZRevRangeByLex` with exclusive boundary offsets (`Max: "(" + cursor`).
+- **Workspace Role Cache (`workspace:<workspaceId>:roles`)**: Hash mapping `user_id -> role` for fast permission lookup.
+- **Workspace Members Cache (`workspace:<workspaceId>:members`)**: Hash storing JSON strings of `WorkspaceMemberResponse` indexed by `user_id` for quick collection retrieval and single member updates.
+- **Consistency & Invalidation**: We follow the Cache-Aside pattern. On creating workspaces or accepting invites, the corresponding ZSET caches are dynamically appended (`ZAdd`) and hashes updated/invalidated to guarantee strong read-after-write consistency.
+
+### Project Caching:
+- **Project Metadata Cache (`project:<projectId>:meta`)**: Redis Hash storing core project fields (`id`, `workspace_id`, `name`, `description`, `status`, `created_by`, `created_at`) with a 24-hour TTL.
+- **Workspace Projects ZSET Indexing (`workspace:<workspaceId>:projects`)**: Sorted set storing project IDs in a workspace with score `0`. Redis sorted sets sort members lexicographically (matching UUIDv7 time sorting).
+  - Paginated queries fetch specific pages using `ZRevRangeByLex` with cursor boundaries (`Max: "(" + cursor`).
+- **Consistency & Invalidation**: We follow the Cache-Aside pattern. On creating a project, the metadata is cached and the ID is added to the ZSET list (`ZAdd`). If a cache miss occurs, the system queries the database (fetching up to 1000 items) to repopulate both the metadata hash and ZSET list. Updates or invalidations delete the list keys from Redis to trigger a reload.
+
+### Task Caching:
+- **Task Metadata Cache (`task:<taskId>:data`)**: Redis Hash storing detailed task fields (`id`, `workspace_id`, `project_id`, `title`, `description`, `status`, `priority`, `assignee_id`, `assignee_name`, `deadline`, `created_at`) with a 3-day TTL.
+- **Project Column ZSET Indexing (`project:<projectId>:col:<columnName>`)**: Sorted set storing task IDs inside a project's column.
+  - **UUIDv7 Scoring**: Scores are set using the 48-bit millisecond timestamp extracted from the task's UUIDv7 ID, maintaining chronological sorting.
+  - **Pruning**: Restricts the column ZSET to only store the latest 100 task IDs using `ZRemRangeByRank` to prune older tasks.
+  - **Cursor-based Pagination**: Fetches paginated tasks using `ZRevRangeByScore` based on the score/timestamp extracted from the cursor task ID (`Max: "(" + cursorScore`).
+  - **Empty Column Caching**: Inserts a dummy `__empty__` member with score `-1` when a column is empty, allowing cache hits for empty columns and avoiding database roundtrips.
+- **Consistency & Invalidation**: We follow the Cache-Aside pattern. Creating or editing a task populates the metadata Hash and ZSET (if it exists) with a 3-day TTL. Moving a task's column (PATCH status) triggers an atomic Redis transaction (`TxPipeline` / `MULTI`/`EXEC` block) to update the status in the metadata Hash, remove the task ID from the old column ZSET, add it to the new column ZSET, and prune the new ZSET.
+
+### Distributed Session Verification Caching:
+- **Session State Cache (`session:<userId>:<deviceId>`)**: String value representing active sessions (`"active"`) cached inside Redis.
+  - **Auth Service Authority**: The central `auth-service` manages the source of truth for active user sessions.
+  - **Decentralized Verification (Fast Path)**: To prevent blocking database lookups and high-latency gRPC calls for every single API request, both `workspace-service` (Go middleware) and `notification-service` (Node.js WebSocket middleware) check Redis first.
+  - **Fallback to gRPC (Slow Path / Cache Miss)**: If a session key is missing from Redis, the consuming service issues a `VerifySession` gRPC query to `auth-service`. Upon successful response, the session is cached locally under `session:<userId>:<deviceId>` with a short **15-minute TTL** (`900` seconds / `15 * time.Minute`) to optimize subsequent requests.
+  - **Invalidation & Consistency**: When a user logs out, `auth-service` terminates the session and broadcasts a `user-logout` Kafka event. All services listen to this event and instantly purge the corresponding `session:<userId>:<deviceId>` cache key, guaranteeing instant token invalidation across the microservices.
+
+---
+
+## Kafka Architecture & Events
+
+The system leverages Apache Kafka to support Event-Driven Architecture (EDA), ensuring loose coupling, high throughput asynchronous processing, and eventual consistency between the microservices.
+
+### Core Architecture Patterns:
+- **User Snapshot Synchronization**: When a user registers, the Auth Service publishes a `user-registered` event containing the user's basic profile details. The Workspace Service and Notification Service subscribe to this topic and replicate local read-only copies of the user profiles (`SyncUserSnapshot` / `syncUserSnapshot` methods) to execute fast joins and notifications without synchronous cross-service HTTP calls.
+- **Session Termination Handling**: Logging out of a device triggers a `user-logout` event. The Workspace Service listens to this topic and instantly deletes the active login session cached under `session:<userId>:<deviceId>` in Redis, validating logout across all microservices.
+- **Event-Driven Notifications**: Services publish notification events to trigger delivery. The Notification Service consumes these events, records the notification history in MongoDB, and pushes real-time notifications to the client over WebSockets.
+- **Asynchronous Task Creation**: To support high-throughput, write-heavy task ingestion, tasks are not inserted directly into the database. Instead, the creation request generates a UUIDv7, queries the assignee name using a cache-first approach (checking the workspace members cache first, then the user repo database on miss), updates the Redis cache immediately for real-time reads, and publishes the task object to the `task-created` Kafka topic. A background consumer buffers incoming tasks and performs bulk inserts into PostgreSQL in batches of 1,000 tasks or every 2 seconds.
+- **Asynchronous Task Updates**: Similar to task creation, full task updates (`UpdateFullTask`) and status updates (`UpdateTaskStatus`) write immediately to the Redis cache for zero-latency client-side visibility and publish events to the `task-updated` and `task-status-updated` Kafka topics. Background worker routines consume these topics, batching updates (up to 1,000 items or every 2 seconds), and applying them in bulk to PostgreSQL via optimized batch UPDATE commands to minimize database query overhead.
+
+### Kafka Topic Mapping & Event Flow:
+
+| Topic Name | Producer Service | Consumer Service(s) | Description |
+| :--- | :--- | :--- | :--- |
+| `user-registered` | Auth Service (Node) | Workspace (Go), Notification (Node) | Replicates user profiles locally to enable fast joins & notification delivery. |
+| `user-logout` | Auth Service (Node) | Workspace (Go) | Terminates active user sessions across services. |
+| `send-notification` | Any Service | Notification Service (Node) | Triggers email and real-time in-app WebSocket notifications. |
+| `task-created` | Workspace (Go) | Workspace Service Worker (Go) | Performs asynchronous, batched bulk inserts of tasks into PostgreSQL. |
+| `task-updated` | Workspace (Go) | Workspace Service Worker (Go) | Performs asynchronous, batched bulk updates of tasks in PostgreSQL. |
+| `task-status-updated` | Workspace (Go) | Workspace Service Worker (Go) | Performs asynchronous, batched bulk task status updates in PostgreSQL. |
+
+### Enterprise-Grade Reliability & Fault Tolerance:
+- **Synchronous Produce & Replication Acknowledgement**: All critical domain event writers are configured to produce synchronously (`async = false` or blocking futures) and require acknowledgement from all partition replicas (`RequiredAcks = RequireAll` in Go / `acks: -1` in Node.js), preventing data loss.
+- **Divide-and-Conquer Recursive Database Fallbacks**:
+  - If a bulk database write (PostgreSQL `sqlx` bulk inserts/updates or MongoDB Mongoose `bulkWrite`) fails due to constraint violations or invalid schema parameters, the services do not fail the entire batch or resort to slow row-by-row iteration.
+  - Instead, the repository/service layer recursively splits the failed sub-batch in half and retries bulk execution on smaller sub-batches.
+  - Sub-batches of size `1` that fail are isolated as "Poisonous Data" and returned to the handler, keeping valid records stored safely.
+- **Service-Specific DLQ Routing & Precise Offsets**:
+  - Isolated poisonous events are routed directly to dedicated Dead Letter Queue (DLQ) topics specific to each microservice (e.g., `task-created-dlq`, `user-registered-workspace-dlq`, and `user-registered-notification-dlq`) with `x-failure-reason` metadata headers.
+  - Kafka consumer offsets are committed (`resolveOffset`) ONLY for successfully saved or successfully isolated (DLQ-routed) messages, while database connection drops are propagated up to trigger consumer re-fetches, preventing offset drift or message loss.
 
 ---
 

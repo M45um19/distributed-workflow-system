@@ -125,7 +125,7 @@ if [[ "$install_monitoring" == "y" ]]; then
 
     echo "Installing Promtail (Log Shipping Agent)..."
     helm install promtail grafana/promtail --namespace monitoring \
-        --set "config.clients[0].url=http://loki-gateway/loki/api/v1/push"
+        --set "config.clients[0].url=http://loki-single-binary:3100/loki/api/v1/push"
 
     echo "Installing OpenTelemetry Collector..."
     helm install otel-collector open-telemetry/opentelemetry-collector --namespace monitoring \
@@ -186,7 +186,7 @@ fi
 echo ""
 echo "  Data Sources Setup (Connections -> Data sources):"
 echo "  - Add Tempo: http://tempo.monitoring.svc.cluster.local:3200"
-echo "  - Add Loki:  http://loki-gateway.monitoring.svc.cluster.local"
+echo "  - Add Loki:  http://loki-single-binary.monitoring.svc.cluster.local:3100"
 echo ""
 
 echo "----------------------------------------------------------"
