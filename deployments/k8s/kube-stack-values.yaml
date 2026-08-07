@@ -1,0 +1,11 @@
+# Helm values override for kube-prometheus-stack to fix CrashLoopBackOff on KinD
+grafana:
+  sidecar:
+    image:
+      repository: kiwigrid/k8s-sidecar
+      tag: "1.26.1"
+
+kube-state-metrics:
+  image:
+    repository: kube-state-metrics/kube-state-metrics
+    tag: "v2.13.0"

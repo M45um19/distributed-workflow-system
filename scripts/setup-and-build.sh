@@ -98,7 +98,8 @@ if [[ "$install_monitoring" == "y" ]]; then
     helm install ingress-nginx ingress-nginx/ingress-nginx --namespace ingress-nginx --create-namespace
 
     echo "Installing Prometheus Operator Stack..."
-    helm install kube-stack prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace
+    helm install kube-stack prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace \
+        -f deployments/k8s/kube-stack-values.yaml
 
     echo "Installing Tempo (Distributed Tracing)..."
     helm install tempo grafana/tempo --namespace monitoring
@@ -108,6 +109,7 @@ if [[ "$install_monitoring" == "y" ]]; then
         --set deploymentMode=SingleBinary \
         --set loki.auth_enabled=false \
         --set singleBinary.replicas=1 \
+        --set loki.commonConfig.replication_factor=1 \
         --set singleBinary.resources.requests.memory=100Mi \
         --set singleBinary.resources.limits.memory=500Mi \
         --set chunksCache.enabled=false \
@@ -125,7 +127,7 @@ if [[ "$install_monitoring" == "y" ]]; then
 
     echo "Installing Promtail (Log Shipping Agent)..."
     helm install promtail grafana/promtail --namespace monitoring \
-        --set "config.clients[0].url=http://loki-single-binary:3100/loki/api/v1/push"
+        --set "config.clients[0].url=http://loki:3100/loki/api/v1/push"
 
     echo "Installing OpenTelemetry Collector..."
     helm install otel-collector open-telemetry/opentelemetry-collector --namespace monitoring \
@@ -186,7 +188,7 @@ fi
 echo ""
 echo "  Data Sources Setup (Connections -> Data sources):"
 echo "  - Add Tempo: http://tempo.monitoring.svc.cluster.local:3200"
-echo "  - Add Loki:  http://loki-single-binary.monitoring.svc.cluster.local:3100"
+echo "  - Add Loki:  http://loki.monitoring.svc.cluster.local:3100"
 echo ""
 
 echo "----------------------------------------------------------"

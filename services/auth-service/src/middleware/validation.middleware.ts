@@ -16,9 +16,22 @@ export const validateRequest = <T>(schema: ZodSchema<T>) => {
                 params: typeof req.params 
             };
 
-            req.body = data.body;
-            req.query = data.query;
-            req.params = data.params as Record<string, string>;
+            if (data.body !== undefined) {
+                req.body = data.body;
+            }
+
+            if (data.query !== undefined) {
+                Object.defineProperty(req, 'query', {
+                    value: data.query,
+                    writable: true,
+                    enumerable: true,
+                    configurable: true,
+                });
+            }
+
+            if (data.params !== undefined) {
+                req.params = data.params as Record<string, string>;
+            }
 
             next();
         } catch (error: unknown) {
