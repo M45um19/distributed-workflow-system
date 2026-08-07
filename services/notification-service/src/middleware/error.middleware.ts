@@ -13,7 +13,7 @@ const sendErrorDev = (err: AppError, req: Request, res: Response) => {
     JSON.stringify({
       level: "error",
       timestamp: new Date().toISOString(),
-      service: "auth-service",
+      service: "notification-service",
       environment: "development",
       message: err.message,
       method: req.method,
@@ -40,7 +40,7 @@ const sendErrorProd = (err: AppError, req: Request, res: Response) => {
       JSON.stringify({
         level: "warn",
         timestamp: new Date().toISOString(),
-        service: "auth-service",
+        service: "notification-service",
         environment: "production",
         message: err.message,
         method: req.method,
@@ -59,7 +59,7 @@ const sendErrorProd = (err: AppError, req: Request, res: Response) => {
       JSON.stringify({
         level: "error",
         timestamp: new Date().toISOString(),
-        service: "auth-service",
+        service: "notification-service",
         environment: "production",
         message: err.message || "Something went very wrong!",
         method: req.method,
